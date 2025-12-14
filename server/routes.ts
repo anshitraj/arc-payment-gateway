@@ -5,6 +5,11 @@ import { storage, generateApiKey, generateWebhookSecret } from "./storage";
 import { insertUserSchema, insertPaymentSchema, insertInvoiceSchema } from "@shared/schema";
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { z } from "zod";
+import { registerPaymentRoutes } from "./routes/payments";
+import { registerRefundRoutes } from "./routes/refunds";
+import { registerWebhookRoutes } from "./routes/webhooks";
+import { startPaymentChecker } from "./services/paymentService";
+import { startTxWatcher } from "./services/txWatcher";
 
 declare module "express-session" {
   interface SessionData {
@@ -64,6 +69,23 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // CORS middleware for API routes
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    // Allow same-origin and localhost origins
+    if (origin && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
+    
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "arc-pay-kit-secret-key",
@@ -72,6 +94,7 @@ export async function registerRoutes(
       cookie: {
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       },
     })
@@ -159,6 +182,107 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/auth/wallet-login", async (req, res) => {
+    try {
+      const { address } = req.body;
+      
+      if (!address || typeof address !== 'string' || !address.startsWith('0x')) {
+        return res.status(400).json({ error: "Invalid wallet address" });
+      }
+
+      // Normalize wallet address (lowercase)
+      const normalizedAddress = address.toLowerCase();
+
+      // Find or create user by wallet address
+      // Use wallet address as email identifier (wallet@wallet.com format)
+      const walletEmail = `${normalizedAddress}@wallet.local`;
+      let user = await storage.getUserByEmail(walletEmail);
+
+      if (!user) {
+        // Create new user with wallet address
+        const hashedPassword = hashPassword(normalizedAddress); // Use address as password (not secure, but for wallet auth)
+        user = await storage.createUser({
+          email: walletEmail,
+          password: hashedPassword,
+          name: `Wallet ${normalizedAddress.slice(0, 6)}...${normalizedAddress.slice(-4)}`,
+        });
+
+        // Create merchant for the user
+        const merchant = await storage.createMerchant({
+          userId: user.id,
+          name: `${user.name}'s Business`,
+          apiKey: generateApiKey(),
+          webhookSecret: generateWebhookSecret(),
+          walletAddress: normalizedAddress,
+        });
+
+        // Create treasury balances
+        await storage.createTreasuryBalance({
+          merchantId: merchant.id,
+          currency: "USDC",
+          balance: "0",
+        });
+
+        await storage.createTreasuryBalance({
+          merchantId: merchant.id,
+          currency: "USDT",
+          balance: "0",
+        });
+
+        req.session.userId = user.id;
+        req.session.merchantId = merchant.id;
+
+        res.json({
+          user: { id: user.id, email: user.email, name: user.name },
+          merchant: { id: merchant.id, name: merchant.name, apiKey: merchant.apiKey },
+        });
+      } else {
+        // Existing user - get their merchant
+        let merchant = await storage.getMerchantByUserId(user.id);
+        
+        if (!merchant) {
+          // Create merchant if doesn't exist
+          merchant = await storage.createMerchant({
+            userId: user.id,
+            name: `${user.name}'s Business`,
+            apiKey: generateApiKey(),
+            webhookSecret: generateWebhookSecret(),
+            walletAddress: normalizedAddress,
+          });
+
+          // Create treasury balances
+          await storage.createTreasuryBalance({
+            merchantId: merchant.id,
+            currency: "USDC",
+            balance: "0",
+          });
+
+          await storage.createTreasuryBalance({
+            merchantId: merchant.id,
+            currency: "USDT",
+            balance: "0",
+          });
+        } else {
+          // Update wallet address if not set
+          if (!merchant.walletAddress) {
+            await storage.updateMerchant(merchant.id, { walletAddress: normalizedAddress });
+          }
+        }
+
+        req.session.userId = user.id;
+        req.session.merchantId = merchant.id;
+
+        res.json({
+          user: { id: user.id, email: user.email, name: user.name },
+          merchant: { id: merchant.id, name: merchant.name, apiKey: merchant.apiKey },
+        });
+      }
+    } catch (error) {
+      console.error("Wallet login error:", error);
+      res.status(500).json({ error: "Wallet login failed" });
+    }
+  });
+
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {
@@ -206,16 +330,20 @@ export async function registerRoutes(
     res.json(payments);
   });
 
-  app.get("/api/payments/:id", requireAuth, async (req, res) => {
+  // Legacy endpoint for session-based auth (dashboard)
+  // Public access allowed for checkout pages
+  app.get("/api/payments/:id", async (req, res) => {
     const payment = await storage.getPayment(req.params.id);
     if (!payment) {
       return res.status(404).json({ error: "Payment not found" });
     }
     
-    if (payment.merchantId !== req.session.merchantId) {
+    // If user is authenticated via session, verify ownership
+    if (req.session.merchantId && payment.merchantId !== req.session.merchantId) {
       return res.status(403).json({ error: "Access denied" });
     }
     
+    // Public access allowed (for checkout pages)
     res.json(payment);
   });
 
@@ -232,13 +360,24 @@ export async function registerRoutes(
 
       const { amount, currency, description, customerEmail } = result.data;
 
+      // Get merchant to retrieve wallet address
+      const merchant = await storage.getMerchant(req.session.merchantId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
+      }
+
+      if (!merchant.walletAddress) {
+        return res.status(400).json({ error: "Merchant wallet address not set. Please configure your wallet address in settings." });
+      }
+
       const payment = await storage.createPayment({
         merchantId: req.session.merchantId,
         amount,
         currency,
         description,
         customerEmail,
-        status: "pending",
+        merchantWallet: merchant.walletAddress,
+        status: "created",
       });
 
       res.json(payment);
@@ -419,6 +558,43 @@ export async function registerRoutes(
       avgSettlement: Math.round(avgSettlement),
     });
   });
+
+  // Demo endpoints (no auth required)
+  app.get("/demo/payments", async (_, res) => {
+    res.json([
+      {
+        id: "demo-1",
+        amount: "10",
+        currency: "USDC",
+        status: "demo",
+        wallet: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+        txHash: "0x" + randomBytes(32).toString("hex"),
+        createdAt: new Date().toISOString(),
+        isDemo: true,
+      },
+      {
+        id: "demo-2",
+        amount: "25.5",
+        currency: "USDC",
+        status: "demo",
+        wallet: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+        txHash: "0x" + randomBytes(32).toString("hex"),
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+        isDemo: true,
+      },
+    ]);
+  });
+
+  // Register new payment, refund, and webhook routes
+  registerPaymentRoutes(app);
+  registerRefundRoutes(app);
+  registerWebhookRoutes(app);
+
+  // Start background payment checker (legacy)
+  startPaymentChecker();
+  
+  // Start transaction watcher (enhanced polling with exponential backoff)
+  startTxWatcher();
 
   return httpServer;
 }

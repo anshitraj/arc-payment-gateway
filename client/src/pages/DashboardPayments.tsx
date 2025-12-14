@@ -3,12 +3,21 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { PaymentsTable } from "@/components/PaymentsTable";
 import { CreatePaymentDialog } from "@/components/CreatePaymentDialog";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import { useLocation } from "wouter";
 import type { Payment } from "@shared/schema";
+import { exportPaymentsToCSV } from "@/lib/csvExport";
 
 export default function DashboardPayments() {
+  const [, setLocation] = useLocation();
   const { data: payments = [], isLoading } = useQuery<Payment[]>({
     queryKey: ["/api/payments"],
   });
+
+  const handleExportCSV = () => {
+    exportPaymentsToCSV(payments);
+  };
 
   const style = {
     "--sidebar-width": "16rem",
@@ -28,7 +37,13 @@ export default function DashboardPayments() {
                 <p className="text-sm text-muted-foreground">Manage all your payment transactions</p>
               </div>
             </div>
-            <CreatePaymentDialog />
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleExportCSV}>
+                <Download className="w-4 h-4 mr-2" />
+                Export CSV
+              </Button>
+              <CreatePaymentDialog />
+            </div>
           </header>
 
           <main className="flex-1 overflow-auto p-4 lg:p-6">

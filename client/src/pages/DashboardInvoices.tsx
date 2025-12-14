@@ -72,7 +72,12 @@ export default function DashboardInvoices() {
 
   const createMutation = useMutation({
     mutationFn: async (data: InvoiceFormData) => {
-      return await apiRequest("POST", "/api/invoices", { ...data, amount: parseFloat(data.amount) });
+      // Backend expects amount as string, not number
+      return await apiRequest("POST", "/api/invoices", { 
+        ...data, 
+        amount: data.amount, // Keep as string
+        currency: "USDC", // Add currency explicitly
+      });
     },
     onSuccess: () => {
       toast({ title: "Invoice Created", description: "Invoice has been created successfully." });
@@ -80,8 +85,12 @@ export default function DashboardInvoices() {
       form.reset();
       setOpen(false);
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to create invoice", variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to create invoice", 
+        variant: "destructive" 
+      });
     },
   });
 

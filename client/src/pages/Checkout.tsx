@@ -12,40 +12,150 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Zap, Check, Loader2, Shield, Clock, AlertCircle } from "lucide-react";
+import { Zap, Check, Loader2, Shield, Clock, AlertCircle, Wallet, ExternalLink } from "lucide-react";
 import type { Payment } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { useWallet } from "@/lib/wallet-rainbowkit";
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { getExplorerLink, getArcNetworkName, getArcChainId } from "@/lib/arc";
+import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { parseUnits } from 'viem';
+
+// USDC ERC20 ABI (transfer function only)
+const USDC_ABI = [
+  {
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    name: "transfer",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
+// USDC token address on ARC Testnet (should be set in env)
+const USDC_ADDRESS = (import.meta.env.VITE_USDC_TOKEN_ADDRESS || "0x0000000000000000000000000000000000000000") as `0x${string}`;
+const USDC_DECIMALS = 6; // USDC uses 6 decimals
 
 export default function Checkout() {
   const { id } = useParams<{ id: string }>();
   const [currency, setCurrency] = useState("USDC");
-  const [paymentState, setPaymentState] = useState<"idle" | "processing" | "success" | "error">("idle");
+  const [paymentState, setPaymentState] = useState<"idle" | "processing" | "pending" | "success" | "error">("idle");
+  const { address, isConnected, isArcChain, switchToArcChain } = useWallet();
 
-  const { data: payment, isLoading, error } = useQuery<Payment>({
+  const { data: payment, isLoading, error, refetch } = useQuery<Payment>({
     queryKey: ["/api/payments", id],
     enabled: !!id,
+    refetchInterval: paymentState === "pending" ? 3000 : false, // Poll every 3s when pending
   });
 
-  const confirmMutation = useMutation({
-    mutationFn: async () => {
-      setPaymentState("processing");
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      const result = await apiRequest("POST", `/api/payments/${id}/confirm`, {});
-      return result;
-    },
-    onSuccess: () => {
-      setPaymentState("success");
-    },
-    onError: () => {
-      setPaymentState("error");
-    },
-  });
-
+  // Auto-switch to ARC chain when connected
   useEffect(() => {
-    if (payment?.status === "final") {
-      setPaymentState("success");
+    if (isConnected && !isArcChain) {
+      switchToArcChain().catch(console.error);
     }
-  }, [payment?.status]);
+  }, [isConnected, isArcChain, switchToArcChain]);
+
+  // Validate chain before proceeding
+  const validateChain = async () => {
+    if (!isConnected || !address) {
+      throw new Error("Wallet not connected. Please connect your wallet first.");
+    }
+
+    if (!isArcChain) {
+      await switchToArcChain();
+      // Wait a bit for chain switch
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    const currentChainId = getArcChainId();
+    if (typeof window !== 'undefined' && (window as any).ethereum) {
+      const chainId = await (window as any).ethereum.request({ method: 'eth_chainId' });
+      const chainIdNum = parseInt(chainId, 16);
+      if (chainIdNum !== currentChainId) {
+        throw new Error(`Please switch to ARC Testnet (Chain ID: ${currentChainId})`);
+      }
+    }
+  };
+
+  // USDC transfer transaction
+  const { writeContract, data: txHash, isPending: isWriting, error: writeError } = useWriteContract();
+
+  // Wait for transaction receipt
+  const { isLoading: isWaiting, isSuccess: txSuccess, isError: txError } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
+
+  // Submit txHash to backend
+  const submitTxMutation = useMutation({
+    mutationFn: async (hash: `0x${string}`) => {
+      const result = await apiRequest("POST", `/api/payments/submit-tx`, {
+        paymentId: id,
+        txHash: hash,
+        payerWallet: address,
+      });
+      return await result.json();
+    },
+  });
+
+  // Handle transaction submission when txHash is available
+  useEffect(() => {
+    if (txHash && !submitTxMutation.isPending && !submitTxMutation.isSuccess && !submitTxMutation.isError) {
+      setPaymentState("pending");
+      submitTxMutation.mutate(txHash);
+    }
+  }, [txHash, submitTxMutation]);
+
+  // Handle transaction success/failure
+  useEffect(() => {
+    if (txSuccess && submitTxMutation.isSuccess) {
+      // Transaction confirmed and submitted to backend
+      refetch(); // Refresh payment status
+    } else if (txError || writeError) {
+      setPaymentState("error");
+    } else if (submitTxMutation.isError) {
+      setPaymentState("error");
+    }
+  }, [txSuccess, txError, writeError, submitTxMutation.isSuccess, submitTxMutation.isError, refetch]);
+
+  // Handle payment status changes from backend polling
+  useEffect(() => {
+    if (payment?.status === "confirmed") {
+      setPaymentState("success");
+    } else if (payment?.status === "failed") {
+      setPaymentState("error");
+    } else if (payment?.status === "pending" && paymentState === "idle") {
+      setPaymentState("pending");
+    }
+  }, [payment?.status, paymentState]);
+
+  // Main payment handler
+  const handlePay = async () => {
+    try {
+      if (!payment || !payment.merchantWallet) {
+        throw new Error("Payment or merchant wallet not found");
+      }
+
+      setPaymentState("processing");
+      await validateChain();
+
+      // Execute USDC transfer directly
+      const amount = parseFloat(payment.amount);
+      const amountInUnits = parseUnits(amount.toFixed(USDC_DECIMALS), USDC_DECIMALS);
+      
+      writeContract({
+        address: USDC_ADDRESS,
+        abi: USDC_ABI,
+        functionName: "transfer",
+        args: [payment.merchantWallet as `0x${string}`, amountInUnits],
+      });
+    } catch (error) {
+      console.error("Payment error:", error);
+      setPaymentState("error");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -120,9 +230,20 @@ export default function Checkout() {
                   <p className="text-muted-foreground mb-4">
                     Your payment of {amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} {currency} has been processed.
                   </p>
+                  {payment.txHash && (
+                    <a
+                      href={getExplorerLink(payment.txHash)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-sm text-primary hover:underline mb-3"
+                    >
+                      View on Explorer
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  )}
                   <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">
                     <Clock className="w-3 h-3 mr-1" />
-                    Finalized in &lt;1s
+                    {payment.settlementTime ? `Finalized in ${payment.settlementTime}s` : "Finalized"}
                   </Badge>
                 </motion.div>
               ) : (
@@ -151,7 +272,7 @@ export default function Checkout() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Network</span>
-                      <span>Arc Mainnet</span>
+                      <span>{getArcNetworkName()}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Gas Fee</span>
@@ -163,16 +284,97 @@ export default function Checkout() {
                     </div>
                   </div>
 
+                  {!isConnected && (
+                    <div className="mb-3">
+                      <ConnectButton.Custom>
+                        {({
+                          account,
+                          chain,
+                          openAccountModal,
+                          openChainModal,
+                          openConnectModal,
+                          authenticationStatus,
+                          mounted,
+                        }) => {
+                          const ready = mounted;
+                          const connected =
+                            ready &&
+                            account &&
+                            chain &&
+                            (!authenticationStatus ||
+                              authenticationStatus === 'authenticated');
+
+                          return (
+                            <div
+                              {...(!ready && {
+                                'aria-hidden': true,
+                                'style': {
+                                  opacity: 0,
+                                  pointerEvents: 'none',
+                                  userSelect: 'none',
+                                },
+                              })}
+                            >
+                              {(() => {
+                                if (!connected) {
+                                  return (
+                                    <Button
+                                      onClick={openConnectModal}
+                                      type="button"
+                                      className="w-full h-12 text-base"
+                                      variant="outline"
+                                    >
+                                      <Wallet className="w-5 h-5 mr-2" />
+                                      Connect Wallet
+                                    </Button>
+                                  );
+                                }
+
+                                if (chain.unsupported) {
+                                  return (
+                                    <Button
+                                      onClick={openChainModal}
+                                      type="button"
+                                      variant="destructive"
+                                      className="w-full h-12 text-base"
+                                    >
+                                      Wrong network - Switch to ARC Testnet
+                                    </Button>
+                                  );
+                                }
+
+                                return null;
+                              })()}
+                            </div>
+                          );
+                        }}
+                      </ConnectButton.Custom>
+                    </div>
+                  )}
+
                   <Button
                     className="w-full h-12 text-base"
-                    onClick={() => confirmMutation.mutate()}
-                    disabled={paymentState === "processing"}
+                    onClick={handlePay}
+                    disabled={
+                      paymentState === "processing" || 
+                      paymentState === "pending" ||
+                      isWriting || 
+                      isWaiting ||
+                      !isConnected || 
+                      !address ||
+                      !isArcChain
+                    }
                     data-testid="button-pay"
                   >
-                    {paymentState === "processing" ? (
+                    {paymentState === "processing" || isWriting ? (
                       <>
                         <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Processing...
+                        Preparing...
+                      </>
+                    ) : paymentState === "pending" || isWaiting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Confirming...
                       </>
                     ) : (
                       <>Pay ${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}</>
@@ -181,8 +383,25 @@ export default function Checkout() {
 
                   {paymentState === "error" && (
                     <p className="text-sm text-destructive text-center">
-                      Payment failed. Please try again.
+                      {writeError?.message || submitTxMutation.error?.message || "Payment failed. Please try again."}
                     </p>
+                  )}
+
+                  {paymentState === "pending" && txHash && (
+                    <div className="text-center space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Transaction submitted. Waiting for confirmation...
+                      </p>
+                      <a
+                        href={getExplorerLink(txHash)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                      >
+                        View on Explorer
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </div>
                   )}
 
                   <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">

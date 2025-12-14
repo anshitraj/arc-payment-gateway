@@ -18,8 +18,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Search, MoreHorizontal, ExternalLink, Copy, RefreshCw } from "lucide-react";
+import { useLocation } from "wouter";
 import type { Payment } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { getExplorerLink } from "@/lib/arc";
 
 interface PaymentsTableProps {
   payments: Payment[];
@@ -28,15 +30,17 @@ interface PaymentsTableProps {
 }
 
 const statusColors: Record<string, string> = {
+  created: "bg-gray-500/20 text-gray-500 border-gray-500/30",
   pending: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30",
-  processing: "bg-blue-500/20 text-blue-500 border-blue-500/30",
-  final: "bg-green-500/20 text-green-500 border-green-500/30",
-  refunded: "bg-orange-500/20 text-orange-500 border-orange-500/30",
+  confirmed: "bg-green-500/20 text-green-500 border-green-500/30",
   failed: "bg-red-500/20 text-red-500 border-red-500/30",
+  refunded: "bg-orange-500/20 text-orange-500 border-orange-500/30",
+  expired: "bg-red-500/20 text-red-500 border-red-500/30",
 };
 
 export function PaymentsTable({ payments, loading, onRefund }: PaymentsTableProps) {
   const [search, setSearch] = useState("");
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   const filteredPayments = payments.filter((payment) =>
@@ -128,10 +132,18 @@ export function PaymentsTable({ payments, loading, onRefund }: PaymentsTableProp
               </TableHeader>
               <TableBody>
                 {filteredPayments.map((payment) => (
-                  <TableRow key={payment.id} data-testid={`payment-row-${payment.id}`}>
+                  <TableRow
+                    key={payment.id}
+                    data-testid={`payment-row-${payment.id}`}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setLocation(`/dashboard/payments/${payment.id}`)}
+                  >
                     <TableCell className="font-mono text-sm">
                       <button
-                        onClick={() => copyToClipboard(payment.id, "Payment ID")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard(payment.id, "Payment ID");
+                        }}
                         className="flex items-center gap-1 hover:text-primary transition-colors"
                         data-testid={`copy-id-${payment.id}`}
                       >
@@ -157,8 +169,17 @@ export function PaymentsTable({ payments, loading, onRefund }: PaymentsTableProp
                       {formatDate(payment.createdAt)}
                     </TableCell>
                     <TableCell>
-                      {payment.status === "final" ? (
-                        <span className="text-green-500 text-sm">&lt;1s</span>
+                      {payment.status === "confirmed" && payment.updatedAt ? (
+                        <span className="text-green-500 text-sm">
+                          {new Date(payment.updatedAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      ) : payment.settlementTime ? (
+                        <span className="text-green-500 text-sm">{payment.settlementTime}s</span>
                       ) : (
                         <span className="text-muted-foreground text-sm">-</span>
                       )}
@@ -177,15 +198,31 @@ export function PaymentsTable({ payments, loading, onRefund }: PaymentsTableProp
                             <Copy className="w-4 h-4 mr-2" />
                             Copy ID
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLocation(`/dashboard/payments/${payment.id}`);
+                            }}
+                          >
+                            View Details
+                          </DropdownMenuItem>
                           {payment.txHash && (
-                            <DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(getExplorerLink(payment.txHash!), "_blank");
+                              }}
+                            >
                               <ExternalLink className="w-4 h-4 mr-2" />
                               View on Explorer
                             </DropdownMenuItem>
                           )}
-                          {payment.status === "final" && onRefund && (
+                          {payment.status === "confirmed" && onRefund && (
                             <DropdownMenuItem
-                              onClick={() => onRefund(payment.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRefund(payment.id);
+                              }}
                               className="text-destructive"
                             >
                               <RefreshCw className="w-4 h-4 mr-2" />

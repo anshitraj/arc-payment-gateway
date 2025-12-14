@@ -66,12 +66,15 @@ export function CreatePaymentDialog({ merchantId }: CreatePaymentDialogProps) {
 
   const createPaymentMutation = useMutation({
     mutationFn: async (data: CreatePaymentFormData) => {
+      // Use the correct endpoint: POST /api/payments (not /api/payments/create)
+      // This endpoint uses session-based auth (requireAuth), not API key
       const response = await apiRequest("POST", "/api/payments", {
-        ...data,
-        amount: parseFloat(data.amount),
-        merchantId,
+        amount: data.amount,
+        currency: data.currency,
+        description: data.description || undefined,
+        customerEmail: data.customerEmail || undefined,
       });
-      return response;
+      return await response.json();
     },
     onSuccess: (data) => {
       toast({

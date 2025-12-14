@@ -23,6 +23,8 @@ import {
   LogOut,
   HelpCircle,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { apiRequest } from "@/lib/queryClient";
 
 const mainNavItems = [
   { title: "Overview", icon: LayoutDashboard, href: "/dashboard" },
@@ -36,6 +38,60 @@ const settingsNavItems = [
   { title: "Settings", icon: Settings, href: "/dashboard/settings" },
   { title: "Help", icon: HelpCircle, href: "/docs" },
 ];
+
+function UserProfile() {
+  const { user, merchant } = useAuth();
+  const [, setLocation] = useLocation();
+
+  const handleLogout = async () => {
+    try {
+      await apiRequest("POST", "/api/auth/logout", {});
+      setLocation("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      setLocation("/login");
+    }
+  };
+
+  const getInitials = (name?: string) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  return (
+    <>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+          <span className="text-sm font-medium text-primary">
+            {getInitials(user?.name)}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">
+            {merchant?.name || user?.name || "User"}
+          </p>
+          <p className="text-xs text-muted-foreground truncate">
+            {user?.email || "No email"}
+          </p>
+        </div>
+      </div>
+      <Button
+        variant="ghost"
+        className="w-full justify-start gap-2"
+        onClick={handleLogout}
+        data-testid="button-logout"
+      >
+        <LogOut className="w-4 h-4" />
+        Sign out
+      </Button>
+    </>
+  );
+}
 
 export function DashboardSidebar() {
   const [location] = useLocation();
@@ -109,21 +165,7 @@ export function DashboardSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-            <span className="text-sm font-medium text-primary">DM</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">Demo Merchant</p>
-            <p className="text-xs text-muted-foreground truncate">demo@arcpaykit.com</p>
-          </div>
-        </div>
-        <Link href="/">
-          <Button variant="ghost" className="w-full justify-start gap-2" data-testid="button-logout">
-            <LogOut className="w-4 h-4" />
-            Sign out
-          </Button>
-        </Link>
+        <UserProfile />
       </SidebarFooter>
     </Sidebar>
   );

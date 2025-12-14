@@ -8,6 +8,8 @@ import {
   webhookEndpoints,
   webhookEvents,
   treasuryBalances,
+  refunds,
+  webhookSubscriptions,
   type User,
   type InsertUser,
   type Merchant,
@@ -22,6 +24,10 @@ import {
   type InsertWebhookEvent,
   type TreasuryBalance,
   type InsertTreasuryBalance,
+  type Refund,
+  type InsertRefund,
+  type WebhookSubscription,
+  type InsertWebhookSubscription,
 } from "@shared/schema";
 import { randomBytes } from "crypto";
 
@@ -202,4 +208,76 @@ export function generateWebhookSecret(): string {
   return `whsec_${randomBytes(24).toString("hex")}`;
 }
 
-export const storage = new DatabaseStorage();
+// Extended storage with refunds and webhook subscriptions
+export class ExtendedStorage extends DatabaseStorage {
+  async createRefund(insertRefund: InsertRefund): Promise<Refund> {
+    const [refund] = await db.insert(refunds).values(insertRefund).returning();
+    return refund;
+  }
+
+  async getRefund(id: string): Promise<Refund | undefined> {
+    const [refund] = await db.select().from(refunds).where(eq(refunds.id, id));
+    return refund;
+  }
+
+  async getRefundsByPayment(paymentId: string): Promise<Refund[]> {
+    return await db
+      .select()
+      .from(refunds)
+      .where(eq(refunds.paymentId, paymentId))
+      .orderBy(desc(refunds.createdAt));
+  }
+
+  async updateRefund(id: string, updates: Partial<Refund>): Promise<Refund | undefined> {
+    const [refund] = await db
+      .update(refunds)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(refunds.id, id))
+      .returning();
+    return refund;
+  }
+
+  async createWebhookSubscription(
+    insertSubscription: InsertWebhookSubscription
+  ): Promise<WebhookSubscription> {
+    const [subscription] = await db
+      .insert(webhookSubscriptions)
+      .values(insertSubscription)
+      .returning();
+    return subscription;
+  }
+
+  async getWebhookSubscriptions(merchantId: string): Promise<WebhookSubscription[]> {
+    return await db
+      .select()
+      .from(webhookSubscriptions)
+      .where(eq(webhookSubscriptions.merchantId, merchantId));
+  }
+
+  async getWebhookSubscription(id: string): Promise<WebhookSubscription | undefined> {
+    const [subscription] = await db
+      .select()
+      .from(webhookSubscriptions)
+      .where(eq(webhookSubscriptions.id, id));
+    return subscription;
+  }
+
+  async updateWebhookSubscription(
+    id: string,
+    updates: Partial<WebhookSubscription>
+  ): Promise<WebhookSubscription | undefined> {
+    const [subscription] = await db
+      .update(webhookSubscriptions)
+      .set(updates)
+      .where(eq(webhookSubscriptions.id, id))
+      .returning();
+    return subscription;
+  }
+
+  async deleteWebhookSubscription(id: string): Promise<boolean> {
+    await db.delete(webhookSubscriptions).where(eq(webhookSubscriptions.id, id));
+    return true;
+  }
+}
+
+export const storage = new ExtendedStorage();

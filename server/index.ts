@@ -1,3 +1,17 @@
+// Load environment variables first, before any other imports
+import { config } from "dotenv";
+import { resolve } from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+
+// Get the project root directory (one level up from this file: server/index.ts -> root)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const projectRoot = resolve(__dirname, "..");
+
+// Load .env from project root
+config({ path: resolve(projectRoot, ".env") });
+
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -85,12 +99,22 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
+  
+  httpServer.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      log(`❌ Port ${port} is already in use.`);
+      log(`   Please stop the process using port ${port} or change the PORT in .env`);
+      log(`   To find the process: netstat -ano | findstr :${port}`);
+      process.exit(1);
+    } else {
+      log(`Server error: ${err.message}`);
+      throw err;
+    }
+  });
+
   httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
+    port,
+    "0.0.0.0",
     () => {
       log(`serving on port ${port}`);
     },

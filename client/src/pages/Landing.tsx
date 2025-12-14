@@ -6,8 +6,11 @@ import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { Link } from "wouter";
-import { ArrowRight, Clock, Shield, Zap, BarChart3 } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { ArrowRight, Clock, Shield, Zap, BarChart3, Wallet, CheckCircle2 } from "lucide-react";
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount } from 'wagmi';
+import { useEffect, useRef } from "react";
 
 const stats = [
   { value: "<1s", label: "Settlement Time", icon: Clock },
@@ -17,6 +20,27 @@ const stats = [
 ];
 
 export default function Landing() {
+  const [, setLocation] = useLocation();
+  const { address, isConnected } = useAccount();
+  const hasRedirected = useRef(false);
+
+  // Safe redirect to dashboard after wallet connection (only on landing page)
+  useEffect(() => {
+    // Only redirect if:
+    // 1. We're on the landing page (already true since we're in Landing component)
+    // 2. Wallet is connected
+    // 3. We haven't already redirected (prevent loops)
+    // 4. We have an address
+    if (isConnected && address && !hasRedirected.current) {
+      hasRedirected.current = true;
+      // Small delay to ensure wallet state is stable
+      const timer = setTimeout(() => {
+        setLocation("/dashboard");
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, address, setLocation]);
+
   return (
     <div className="min-h-screen bg-background" data-testid="page-landing">
       <Navbar />
@@ -58,6 +82,44 @@ export default function Landing() {
       </section>
 
       <CodeBlock />
+
+      {/* RainbowKit Wallet Demo Section */}
+      <section className="py-24 relative" data-testid="section-wallet-demo">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-4">
+              Try it yourself
+              <span className="block bg-gradient-to-r from-primary to-blue-400 bg-clip-text text-transparent">
+                Connect your wallet
+              </span>
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Experience seamless wallet connection powered by RainbowKit. 
+              Connect in seconds, pay with USDC on Arc Network.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="max-w-2xl mx-auto"
+          >
+            <Card className="bg-card/50 backdrop-blur-sm border-border">
+              <CardContent className="p-8">
+                <WalletDemo />
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      </section>
 
       <section className="py-24 relative" data-testid="section-dashboard-preview">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -166,6 +228,152 @@ export default function Landing() {
       </section>
 
       <Footer />
+    </div>
+  );
+}
+
+/**
+ * Wallet Demo Component - Interactive RainbowKit demo
+ * 
+ * NOTE: This is for DEMO purposes only on the landing page.
+ * It does NOT handle authentication or redirects.
+ * Actual wallet connection for payments happens on /checkout/:id
+ */
+function WalletDemo() {
+  const { address, isConnected, chain } = useAccount();
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-center">
+        <ConnectButton.Custom>
+          {({
+            account,
+            chain: connectedChain,
+            openAccountModal,
+            openChainModal,
+            openConnectModal,
+            authenticationStatus,
+            mounted,
+          }) => {
+            const ready = mounted && authenticationStatus !== 'loading';
+            const connected =
+              ready &&
+              account &&
+              connectedChain &&
+              (!authenticationStatus ||
+                authenticationStatus === 'authenticated');
+
+            return (
+              <div
+                {...(!ready && {
+                  'aria-hidden': true,
+                  'style': {
+                    opacity: 0,
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                  },
+                })}
+                className="w-full"
+              >
+                {(() => {
+                  if (!connected) {
+                    return (
+                      <Button
+                        onClick={openConnectModal}
+                        type="button"
+                        size="lg"
+                        className="w-full h-14 text-base"
+                        data-testid="button-connect-wallet-demo"
+                      >
+                        <Wallet className="w-5 h-5 mr-2" />
+                        Connect Wallet to Try
+                      </Button>
+                    );
+                  }
+
+                  if (connectedChain.unsupported) {
+                    return (
+                      <Button
+                        onClick={openChainModal}
+                        type="button"
+                        variant="destructive"
+                        size="lg"
+                        className="w-full h-14 text-base"
+                      >
+                        Wrong network - Switch to ARC Testnet
+                      </Button>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 bg-primary/10 rounded-lg border border-primary/20">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                            <CheckCircle2 className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <div className="font-medium">Wallet Connected</div>
+                            <div className="text-sm text-muted-foreground font-mono">
+                              {account.displayName || `${account.address.slice(0, 6)}...${account.address.slice(-4)}`}
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={openAccountModal}
+                          variant="outline"
+                          size="sm"
+                        >
+                          Manage
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="p-3 bg-background/50 rounded-lg">
+                          <div className="text-muted-foreground mb-1">Network</div>
+                          <div className="font-medium">{connectedChain.name}</div>
+                        </div>
+                        <div className="p-3 bg-background/50 rounded-lg">
+                          <div className="text-muted-foreground mb-1">Chain ID</div>
+                          <div className="font-medium font-mono">{connectedChain.id}</div>
+                        </div>
+                      </div>
+                      <div className="p-4 bg-primary/5 rounded-lg border border-primary/10">
+                        <p className="text-sm text-center text-muted-foreground">
+                          🎉 Great! Your wallet is connected. Ready to make payments on Arc Network.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            );
+          }}
+        </ConnectButton.Custom>
+      </div>
+
+      {isConnected && address && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-4 p-4 bg-background/50 rounded-lg border border-border"
+        >
+          <div className="flex items-start gap-3">
+            <Zap className="w-5 h-5 text-primary mt-0.5" />
+            <div className="flex-1">
+              <div className="font-medium mb-1">Ready to accept payments?</div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Create a payment link and let customers pay with their wallets.
+              </p>
+              <Link href="/dashboard">
+                <Button size="sm" variant="outline" className="gap-2">
+                  Go to Dashboard
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

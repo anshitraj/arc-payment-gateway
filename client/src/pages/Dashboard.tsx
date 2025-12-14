@@ -12,8 +12,10 @@ export default function Dashboard() {
     queryKey: ["/api/payments"],
   });
 
-  const totalVolume = payments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
-  const finalPayments = payments.filter((p) => p.status === "final");
+  const totalVolume = payments
+    .filter((p) => p.status === "confirmed")
+    .reduce((sum, p) => sum + parseFloat(p.amount), 0);
+  const confirmedPayments = payments.filter((p) => p.status === "confirmed");
   const pendingPayments = payments.filter((p) => p.status === "pending");
 
   const style = {
@@ -64,7 +66,7 @@ export default function Dashboard() {
                 />
                 <KPICard
                   title="Success Rate"
-                  value={payments.length > 0 ? `${((finalPayments.length / payments.length) * 100).toFixed(1)}%` : "0%"}
+                  value={payments.length > 0 ? `${((confirmedPayments.length / payments.length) * 100).toFixed(1)}%` : "0%"}
                   change={2.1}
                   changeLabel="vs last month"
                   icon={TrendingUp}

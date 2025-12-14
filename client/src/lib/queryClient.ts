@@ -29,12 +29,18 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const url = queryKey.join("/") as string;
+    const res = await fetch(url, {
       credentials: "include",
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;
+    }
+
+    // If 401 and not set to return null, let it throw (will be handled by ProtectedRoute)
+    if (res.status === 401 && unauthorizedBehavior === "throw") {
+      await throwIfResNotOk(res);
     }
 
     await throwIfResNotOk(res);
