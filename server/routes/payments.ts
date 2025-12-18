@@ -53,11 +53,17 @@ export function registerPaymentRoutes(app: Express) {
           ...result.data,
         });
 
+        // Generate checkout URL
+        const baseUrl = process.env.BASE_URL || 
+          (req.headers.origin ? new URL(req.headers.origin).origin : 'https://pay.arcpaykit.com');
+        const checkoutUrl = `${baseUrl}/checkout/${payment.id}`;
+
         res.json({
           id: payment.id,
-          amount: payment.amount,
-          currency: payment.currency,
           status: payment.status,
+          checkout_url: checkoutUrl,
+          amount: parseFloat(payment.amount),
+          currency: payment.currency,
           merchantWallet: payment.merchantWallet,
           expiresAt: payment.expiresAt,
           createdAt: payment.createdAt,
@@ -103,7 +109,7 @@ export function registerPaymentRoutes(app: Express) {
     rateLimit,
     async (req, res) => {
       try {
-        const { paymentId, txHash, payerWallet, customerEmail, customerName } = req.body;
+        const { paymentId, txHash, payerWallet, customerEmail, customerName, gasSponsored } = req.body;
         
         if (!paymentId) {
           return res.status(400).json({ error: "paymentId is required" });
@@ -125,19 +131,32 @@ export function registerPaymentRoutes(app: Express) {
           return res.status(403).json({ error: "Access denied" });
         }
 
-        // Prepare metadata with customer name if provided
+        // Prepare metadata with customer name and gas sponsorship if provided
         let metadata = payment.metadata;
-        if (result.data.customerName) {
-          try {
-            const existingMetadata = metadata ? JSON.parse(metadata) : {};
-            metadata = JSON.stringify({
-              ...existingMetadata,
-              customerName: result.data.customerName,
-            });
-          } catch {
-            // If metadata is invalid JSON, create new object
-            metadata = JSON.stringify({ customerName: result.data.customerName });
+        try {
+          const existingMetadata = metadata ? JSON.parse(metadata) : {};
+          const updatedMetadata: any = { ...existingMetadata };
+          
+          if (result.data.customerName) {
+            updatedMetadata.customerName = result.data.customerName;
           }
+          
+          // Update gas sponsorship if provided (user can override merchant's preference)
+          if (gasSponsored !== undefined) {
+            updatedMetadata.gasSponsored = gasSponsored;
+          }
+          
+          metadata = JSON.stringify(updatedMetadata);
+        } catch {
+          // If metadata is invalid JSON, create new object
+          const newMetadata: any = {};
+          if (result.data.customerName) {
+            newMetadata.customerName = result.data.customerName;
+          }
+          if (gasSponsored !== undefined) {
+            newMetadata.gasSponsored = gasSponsored;
+          }
+          metadata = JSON.stringify(newMetadata);
         }
 
         // Update payment status to pending (will be confirmed by background checker)

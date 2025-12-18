@@ -42,22 +42,19 @@ export function Navbar() {
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "py-3 bg-background/80 backdrop-blur-xl border-b border-border"
-          : "py-5 bg-transparent"
+          ? "py-5 bg-background/80 backdrop-blur-xl border-b border-border"
+          : "py-7 bg-transparent"
       }`}
+      style={{ minHeight: scrolled ? '80px' : '112px' }}
       data-testid="navbar"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2" data-testid="link-logo">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Zap className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold tracking-tight">ArcPayKit</span>
+        <div className="flex items-center justify-between gap-4 h-full">
+          <Link href="/" className="flex items-center flex-shrink-0">
+            <img src="/arcpay.webp" alt="ArcPay" className="h-14 w-auto object-contain" />
           </Link>
-
-          <NavigationMenu className="hidden lg:flex">
-            <NavigationMenuList className="gap-1">
+          <NavigationMenu className="hidden lg:flex flex-1 justify-center">
+            <NavigationMenuList className="gap-1 items-center">
               <NavigationMenuItem>
                 <NavigationMenuTrigger className="bg-transparent" data-testid="nav-product">
                   Product
@@ -126,7 +123,7 @@ export function Navbar() {
             </NavigationMenuList>
           </NavigationMenu>
 
-          <div className="hidden lg:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-3 flex-shrink-0">
             {/* Only show Connect Wallet button on dashboard/app routes, not on homepage */}
             {!isLanding && (
               <ConnectButton.Custom>
@@ -237,12 +234,9 @@ export function Navbar() {
             <SheetContent side="right" className="w-full sm:max-w-md p-0">
               <div className="flex flex-col h-full">
                 <div className="p-6 border-b border-border">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                      <Zap className="w-5 h-5 text-primary-foreground" />
-                    </div>
-                    <span className="text-xl font-bold tracking-tight">ArcPayKit</span>
-                  </div>
+                  <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center">
+                    <img src="/arcpay.webp" alt="ArcPay" className="h-10 w-auto object-contain" />
+                  </Link>
                 </div>
                 <nav className="flex-1 p-6 space-y-6">
                   <div>

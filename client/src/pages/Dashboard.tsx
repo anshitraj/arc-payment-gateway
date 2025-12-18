@@ -6,9 +6,9 @@ import { KPICard } from "@/components/KPICard";
 import { PaymentsTable } from "@/components/PaymentsTable";
 import { CreatePaymentDialog } from "@/components/CreatePaymentDialog";
 import { TestModeToggle } from "@/components/TestModeToggle";
+import { GasPriceDisplay } from "@/components/GasPriceDisplay";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CreditCard, DollarSign, Clock, TrendingUp, AlertCircle, Link2, Plus, Shield, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import { Link, useLocation } from "wouter";
 import type { Payment } from "@shared/schema";
 import { useTestMode } from "@/hooks/useTestMode";
 import { AlertTriangle } from "lucide-react";
+import { Footer } from "@/components/Footer";
 
 export default function Dashboard() {
   const { testMode } = useTestMode();
@@ -79,26 +80,8 @@ export default function Dashboard() {
     retry: false,
   });
 
-  // Fetch gas price (Gwei)
-  const { data: gasPriceData, isLoading: isLoadingGasPrice, error: gasPriceError } = useQuery<{ gasPrice: string; unit: string }>({
-    queryKey: ["/api/gas-price"],
-    queryFn: async () => {
-      const response = await fetch("/api/gas-price", {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Failed to fetch gas price");
-      }
-      return await response.json();
-    },
-    refetchInterval: 30000, // Refetch every 30s
-    staleTime: 10000, // Consider stale after 10s
-    retry: 2,
-    retryDelay: 1000,
-  });
-
   const style = {
-    "--sidebar-width": "16rem",
+    "--sidebar-width": "260px",
     "--sidebar-width-icon": "3rem",
   };
 
@@ -107,48 +90,22 @@ export default function Dashboard() {
       <div className="flex h-screen w-full" data-testid="page-dashboard">
         <DashboardSidebar />
         <div className="flex flex-col flex-1 overflow-hidden">
-          <header className="flex items-center justify-between gap-4 p-4 border-b border-border bg-background/80 backdrop-blur-sm">
-            <div className="flex items-center gap-4">
-              <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <div className="flex items-center gap-3">
-                <div>
-                  <h1 className="text-xl font-semibold">Home</h1>
-                  <p className="text-sm text-muted-foreground">Overview of your payment activity</p>
-                </div>
-                {isVerified && (
-                  <Badge variant="default" className="gap-1">
-                    <Shield className="w-3 h-3" />
-                    Verified
-                  </Badge>
-                )}
+          <header className="flex items-center justify-between gap-4 px-6 py-2.5 border-b border-border/50 bg-background/95 backdrop-blur-sm flex-shrink-0 h-12">
+            <div className="flex items-center gap-3">
+              <SidebarTrigger data-testid="button-sidebar-toggle" className="h-6 w-6" />
+              <div>
+                <h1 className="text-base font-semibold leading-tight">Home</h1>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50 border border-border min-w-[120px]">
-                <img 
-                  src="https://img.icons8.com/pin/100/gas-station.png" 
-                  alt="gas-station" 
-                  className="w-4 h-4 flex-shrink-0"
-                />
-                <span className="text-sm font-medium whitespace-nowrap">
-                  {isLoadingGasPrice ? (
-                    <span className="text-muted-foreground">Loading...</span>
-                  ) : gasPriceError ? (
-                    <span className="text-muted-foreground">N/A</span>
-                  ) : gasPriceData ? (
-                    `${gasPriceData.gasPrice} ${gasPriceData.unit}`
-                  ) : (
-                    <span className="text-muted-foreground">N/A</span>
-                  )}
-                </span>
-              </div>
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <div className="flex items-center gap-2">
+              <GasPriceDisplay />
+              <div className="relative w-48">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search payments..."
+                  placeholder="Search..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
+                  className="pl-8 h-7 text-xs rounded-lg border-border/50 bg-background/50"
                   data-testid="input-search-payments"
                 />
               </div>
@@ -158,15 +115,15 @@ export default function Dashboard() {
           </header>
 
           {activationStatus && !activationStatus.activated && (
-            <div className="bg-orange-500 text-white px-4 py-3 flex items-center justify-between">
+            <div className="bg-orange-500/10 border-b border-orange-500/20 text-orange-600 px-6 py-2.5 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5" />
+                <AlertTriangle className="w-4 h-4" />
                 <span className="text-sm font-medium">
                   You're using test data. To accept payments, complete your business profile.
                 </span>
               </div>
               <Link href="/activate">
-                <Button variant="secondary" size="sm" className="ml-4">
+                <Button variant="outline" size="sm" className="ml-4 h-7 text-xs border-orange-500/30">
                   Complete profile →
                 </Button>
               </Link>
@@ -174,12 +131,12 @@ export default function Dashboard() {
           )}
 
           <main className="flex-1 overflow-auto p-4 lg:p-6">
-            <div className="max-w-7xl mx-auto space-y-6">
+            <div className="max-w-7xl mx-auto space-y-6 pb-8">
               {!isVerified && (
-                <Alert variant="destructive">
+                <Alert variant="destructive" className="rounded-lg border-border/50">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Verification Required</AlertTitle>
-                  <AlertDescription>
+                  <AlertTitle className="text-sm font-semibold">Verification Required</AlertTitle>
+                  <AlertDescription className="text-sm">
                     You must own a Verified Merchant Badge to create payments.{" "}
                     <Link href="/dashboard/settings" className="underline hover:no-underline">
                       Claim your badge in Settings
@@ -196,6 +153,7 @@ export default function Dashboard() {
                   changeLabel="vs last month"
                   icon={DollarSign}
                   loading={isLoading}
+                  isLast={false}
                 />
                 <KPICard
                   title="Transactions"
@@ -204,12 +162,14 @@ export default function Dashboard() {
                   changeLabel="vs last month"
                   icon={CreditCard}
                   loading={isLoading}
+                  isLast={false}
                 />
                 <KPICard
                   title="Avg Settlement"
                   value={formatAvgSettlement()}
                   icon={Clock}
                   loading={isLoading}
+                  isLast={false}
                 />
                 <KPICard
                   title="Success Rate"
@@ -218,34 +178,36 @@ export default function Dashboard() {
                   changeLabel="vs last month"
                   icon={TrendingUp}
                   loading={isLoading}
+                  isLast={true}
                 />
               </div>
 
               {!hasPayments && !isLoading ? (
-                <Card className="bg-card/50 backdrop-blur-sm">
-                  <CardContent className="flex flex-col items-center justify-center py-16 px-4">
-                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                      <CreditCard className="w-8 h-8 text-muted-foreground" />
+                <div className="border border-border rounded-lg bg-card/30">
+                  <div className="flex flex-col items-center justify-center py-16 px-4">
+                    <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center mb-3">
+                      <CreditCard className="w-6 h-6 text-muted-foreground" />
                     </div>
-                    <h3 className="text-lg font-semibold mb-2">Start collecting payments</h3>
-                    <p className="text-muted-foreground text-center mb-6 max-w-md">
+                    <h3 className="text-base font-semibold mb-1.5">Start collecting payments</h3>
+                    <p className="text-muted-foreground text-center mb-5 max-w-md text-sm">
                       Create your first payment link or invoice to start accepting USDC payments on Arc Network.
                     </p>
-                    <div className="flex gap-3">
-                      <Button onClick={() => setLocation("/dashboard/payment-links")}>
-                        <Link2 className="w-4 h-4 mr-2" />
+                    <div className="flex gap-2.5">
+                      <Button size="sm" onClick={() => setLocation("/dashboard/payment-links")} className="h-8">
+                        <Link2 className="w-3.5 h-3.5 mr-1.5" />
                         Create payment link
                       </Button>
-                      <Button variant="outline" onClick={() => setLocation("/dashboard/invoices")}>
-                        <Plus className="w-4 h-4 mr-2" />
+                      <Button variant="outline" size="sm" onClick={() => setLocation("/dashboard/invoices")} className="h-8">
+                        <Plus className="w-3.5 h-3.5 mr-1.5" />
                         Create invoice
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               ) : (
                 <PaymentsTable payments={filteredPayments.slice(0, 10)} loading={isLoading} search={search} />
               )}
+              <Footer />
             </div>
           </main>
         </div>
