@@ -4,7 +4,7 @@
  */
 
 import { db } from "../db.js";
-import { payments, merchantBadges, merchants } from "@shared/schema";
+import { payments, merchantBadges, merchants } from "../../shared/schema.js";
 import { eq, and } from "drizzle-orm";
 import { storage } from "../storage.js";
 import { checkBadgeOwnership } from "./arcService.js";

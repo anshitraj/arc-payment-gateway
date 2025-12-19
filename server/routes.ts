@@ -4,7 +4,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { storage, generateApiKey, generateWebhookSecret } from "./storage.js";
 import { db, pool } from "./db.js";
-import { insertUserSchema, insertPaymentSchema, insertInvoiceSchema } from "@shared/schema";
+import { insertUserSchema, insertPaymentSchema, insertInvoiceSchema } from "../shared/schema.js";
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { z } from "zod";
 import { registerPaymentRoutes } from "./routes/payments.js";

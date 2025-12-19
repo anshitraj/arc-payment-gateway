@@ -11,7 +11,7 @@
 import { createWalletClient, http, encodeFunctionData, parseUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { INVOICE_PAYMENT_PROOF_ADDRESS, INVOICE_PAYMENT_PROOF_ABI, ARC_RPC_URL, ARC_CHAIN_ID } from "../config.js";
-import type { Payment } from "@shared/schema";
+import type { Payment } from "../../shared/schema.js";
 
 /**
  * Record payment proof on-chain via InvoicePaymentProof contract

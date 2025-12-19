@@ -4,7 +4,7 @@
  */
 
 import { db } from "../db.js";
-import { payments } from "@shared/schema";
+import { payments } from "../../shared/schema.js";
 import { eq, and, lt, isNotNull, or } from "drizzle-orm";
 import { dispatchWebhook } from "./webhookService.js";
 import { verifyTransaction, getExplorerLink, getBlockTimestamp } from "./arcService.js";

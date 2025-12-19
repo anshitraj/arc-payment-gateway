@@ -5,7 +5,7 @@
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "../db.js";
-import { webhookSubscriptions, webhookEvents } from "@shared/schema";
+import { webhookSubscriptions, webhookEvents } from "../../shared/schema.js";
 import { eq, and, inArray, desc } from "drizzle-orm";
 
 const MAX_RETRIES = 3;

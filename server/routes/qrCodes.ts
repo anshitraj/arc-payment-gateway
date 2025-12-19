@@ -6,7 +6,7 @@
 import { Express, Request, Response, NextFunction } from "express";
 import { storage } from "../storage.js";
 import { z } from "zod";
-import type { InsertQRCode } from "@shared/schema";
+import type { InsertQRCode } from "../../shared/schema.js";
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session?.userId) {

@@ -65,7 +65,7 @@ import {
   type Notification,
   type InsertNotification,
   notifications,
-} from "@shared/schema";
+} from "../shared/schema.js";
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 
 export interface IStorage {

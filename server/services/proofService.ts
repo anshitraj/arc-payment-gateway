@@ -5,7 +5,7 @@
 
 import { createHash } from "crypto";
 import { storage } from "../storage.js";
-import type { Payment } from "@shared/schema";
+import type { Payment } from "../../shared/schema.js";
 
 /**
  * Generate invoice hash: keccak256(invoiceId + merchant + amount)

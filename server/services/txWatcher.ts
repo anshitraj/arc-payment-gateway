@@ -4,7 +4,7 @@
  */
 
 import { db } from "../db.js";
-import { payments } from "@shared/schema";
+import { payments } from "../../shared/schema.js";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { verifyTransaction } from "./arcService.js";
 import { confirmPayment, failPayment } from "./paymentService.js";

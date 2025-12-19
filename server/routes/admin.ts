@@ -9,7 +9,7 @@ import { storage } from "../storage.js";
 import { hashPassword, verifyPassword } from "../routes.js";
 import { rateLimit } from "../middleware/rateLimit.js";
 import { eq, and, or, desc } from "drizzle-orm";
-import { merchants, payments, webhookSubscriptions, qrCodes, businessNameChangeRequests, blocklist, merchantBadges, adminUsers } from "@shared/schema";
+import { merchants, payments, webhookSubscriptions, qrCodes, businessNameChangeRequests, blocklist, merchantBadges, adminUsers } from "../../shared/schema.js";
 import { db } from "../db.js";
 
 // Admin authentication middleware

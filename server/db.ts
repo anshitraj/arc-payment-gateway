@@ -15,7 +15,7 @@ config({ path: resolve(projectRoot, ".env") });
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
 const { Pool } = pkg;
-import * as schema from "@shared/schema";
+import * as schema from "../shared/schema.js";
 
 if (!process.env.DATABASE_URL) {
   console.error("\n❌ ERROR: DATABASE_URL is not set!\n");

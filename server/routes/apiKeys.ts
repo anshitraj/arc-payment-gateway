@@ -10,7 +10,7 @@ import { requireApiKey } from "../middleware/apiKeyAuth.js";
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from "crypto";
 import { z } from "zod";
 import { eq, and, isNull } from "drizzle-orm";
-import { apiKeys as apiKeysTable } from "@shared/schema";
+import { apiKeys as apiKeysTable } from "../../shared/schema.js";
 import { db } from "../db.js";
 
 function requireAuth(req: Request, res: Response, next: any) {

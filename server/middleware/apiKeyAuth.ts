@@ -5,7 +5,7 @@
 
 import type { Request, Response, NextFunction } from "express";
 import { storage } from "../storage.js";
-import { merchants } from "@shared/schema";
+import { merchants } from "../../shared/schema.js";
 import { eq } from "drizzle-orm";
 import { db } from "../db.js";
 
