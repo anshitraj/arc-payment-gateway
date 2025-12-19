@@ -120,6 +120,7 @@ export async function registerRoutes(
     pool: pool, // Use the PostgreSQL pool directly
     tableName: "session", // Table name for sessions
     createTableIfMissing: true, // Auto-create table if it doesn't exist
+    pruneSessionInterval: false, // Disable automatic pruning in serverless
   });
 
   app.use(
@@ -127,12 +128,13 @@ export async function registerRoutes(
       store: sessionStore,
       secret: process.env.SESSION_SECRET || "arc-pay-kit-secret-key",
       resave: false,
-      saveUninitialized: false,
+      saveUninitialized: false, // Only save sessions that are modified
       cookie: {
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        sameSite: "lax", // Use "lax" for same-site requests (frontend and API on same domain)
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        path: "/",
       },
     })
   );
@@ -268,6 +270,17 @@ export async function registerRoutes(
 
         req.session.userId = user.id;
         req.session.merchantId = merchant.id;
+        
+        // Touch session to ensure it's marked as modified
+        req.session.touch();
+
+        // Ensure session is saved before sending response (critical for serverless)
+        await new Promise<void>((resolve, reject) => {
+          req.session.save((err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
 
         res.json({
           user: { id: user.id, email: user.email, name: user.name },
@@ -328,6 +341,17 @@ export async function registerRoutes(
 
         req.session.userId = user.id;
         req.session.merchantId = merchant.id;
+        
+        // Touch session to ensure it's marked as modified
+        req.session.touch();
+
+        // Ensure session is saved before sending response (critical for serverless)
+        await new Promise<void>((resolve, reject) => {
+          req.session.save((err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
 
         res.json({
           user: { id: user.id, email: user.email, name: user.name },
