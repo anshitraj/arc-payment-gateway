@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 
 export function Hero() {
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-8">
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-24 sm:pt-28 lg:pt-32">
       <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent" />
       <div className="absolute inset-0 overflow-hidden">
         <svg
@@ -66,7 +66,7 @@ export function Hero() {
             transition={{ duration: 0.6 }}
             className="text-center lg:text-left"
           >
-            <div className="flex flex-col items-center lg:items-start gap-3 mb-5">
+            <div className="flex flex-col items-center lg:items-start gap-3 mb-5 mt-4 sm:mt-6">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-sm text-primary">
                 <span>Built on</span>
                 <img src="/arc.webp" alt="Arc" className="h-4 w-auto object-contain" />
