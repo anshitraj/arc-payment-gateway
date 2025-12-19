@@ -13,7 +13,7 @@ const projectRoot = resolve(__dirname, "..");
 config({ path: resolve(projectRoot, ".env") });
 
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "../server/routes";
+import { registerRoutes } from "../server/routes.js";
 
 const app = express();
 
@@ -38,7 +38,7 @@ let appReady = false;
 const initApp = (async () => {
   try {
     // Initialize admin user from ADMIN_WALLET env var
-    const { initializeAdminFromWallet } = await import("../server/admin/init");
+    const { initializeAdminFromWallet } = await import("../server/admin/init.js");
     await initializeAdminFromWallet();
     
     // Create a mock httpServer for routes that need it
@@ -48,7 +48,7 @@ const initApp = (async () => {
     await registerRoutes(httpServer, app);
     
     // Register admin routes
-    const { registerAdminRoutes } = await import("../server/routes/admin");
+    const { registerAdminRoutes } = await import("../server/routes/admin.js");
     registerAdminRoutes(app);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
