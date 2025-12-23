@@ -1,25 +1,38 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount } from 'wagmi';
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import LazyRainbowKit from "@/lib/LazyRainbowKit";
 
 /**
- * Login Content - Uses wallet hooks
- * Hooks can be imported here because this component only renders
- * after LazyRainbowKit loads the providers
+ * Login Content - Uses wallet hooks dynamically
+ * CRITICAL: No static imports of wagmi/RainbowKit - they cause SES to execute early
  */
 function LoginContent() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { address, isConnected } = useAccount();
+  const [wagmiHooks, setWagmiHooks] = useState<any>(null);
+  const [connectButton, setConnectButton] = useState<any>(null);
   const hasRedirected = useRef(false);
+
+  // Dynamically load wagmi hooks and ConnectButton
+  useEffect(() => {
+    Promise.all([
+      import('wagmi'),
+      import('@rainbow-me/rainbowkit')
+    ]).then(([wagmi, rainbow]) => {
+      setWagmiHooks(wagmi);
+      setConnectButton(() => rainbow.ConnectButton);
+    });
+  }, []);
+
+  // Get account info using dynamic hook
+  const accountResult = wagmiHooks?.useAccount ? wagmiHooks.useAccount() : { address: undefined, isConnected: false };
+  const { address, isConnected } = accountResult;
 
   // Authenticate with wallet address when connected
   const walletAuthMutation = useMutation({
@@ -42,14 +55,11 @@ function LoginContent() {
     },
   });
 
-  // Auto-authenticate when wallet connects (but not if user just logged out)
+  // Auto-authenticate when wallet connects
   useEffect(() => {
-    // Check if user just logged out
     const justLoggedOut = sessionStorage.getItem("logout");
     if (justLoggedOut) {
-      // Clear the logout flag
       sessionStorage.removeItem("logout");
-      // Don't auto-authenticate
       return;
     }
     
@@ -58,6 +68,19 @@ function LoginContent() {
       walletAuthMutation.mutate(address);
     }
   }, [isConnected, address, walletAuthMutation]);
+
+  if (!connectButton) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center">
+          <Wallet className="w-8 h-8 mx-auto mb-4 animate-pulse text-primary" />
+          <p className="text-muted-foreground">Loading wallet...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const ConnectButtonCustom = connectButton.Custom;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4" data-testid="page-login">
@@ -90,7 +113,7 @@ function LoginContent() {
               </div>
 
               <div className="flex justify-center">
-                <ConnectButton.Custom>
+                <ConnectButtonCustom>
                   {({
                     account,
                     chain,
@@ -168,7 +191,7 @@ function LoginContent() {
                       </div>
                     );
                   }}
-                </ConnectButton.Custom>
+                </ConnectButtonCustom>
               </div>
 
               {walletAuthMutation.isPending && (
@@ -186,7 +209,7 @@ function LoginContent() {
 
 /**
  * Login Page - Wraps LoginContent with LazyRainbowKit
- * This ensures wallet SDKs only load after window.onload
+ * CRITICAL: This ensures wallet SDKs only load after window.onload
  */
 export default function Login() {
   return (

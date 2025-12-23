@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/navigation-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, X, Zap, CreditCard, Shield, Code2, BookOpen, Webhook, BarChart3, Wallet, Droplet } from "lucide-react";
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { NotificationDropdown } from "./NotificationDropdown";
+import { useState, useEffect } from "react";
 
 const productItems = [
   { title: "Payments", description: "Accept stablecoin payments instantly", icon: CreditCard, href: "/dashboard" },
@@ -30,6 +30,16 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
+  const [ConnectButton, setConnectButton] = useState<any>(null);
+
+  // Dynamically load ConnectButton - only works inside LazyRainbowKit
+  useEffect(() => {
+    import('@rainbow-me/rainbowkit').then(rainbow => {
+      setConnectButton(() => rainbow.ConnectButton);
+    }).catch(() => {
+      // Not available - page doesn't have LazyRainbowKit
+    });
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -126,7 +136,7 @@ export function Navbar() {
 
           <div className="hidden lg:flex items-center gap-3 flex-shrink-0">
             {/* Only show Connect Wallet button on dashboard/app routes, not on homepage */}
-            {!isLanding && (
+            {!isLanding && ConnectButton && (
               <ConnectButton.Custom>
                 {({
                   account,
@@ -288,7 +298,7 @@ export function Navbar() {
                 </nav>
                 <div className="p-6 border-t border-border space-y-3">
                   {/* Only show Connect Wallet button on dashboard/app routes, not on homepage */}
-                  {!isLanding && (
+                  {!isLanding && ConnectButton && (
                     <ConnectButton.Custom>
                       {({
                         account,
