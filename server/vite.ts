@@ -4,15 +4,12 @@ import { type Server } from "http";
 import viteConfig from "../vite.config";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
 
 const viteLogger = createLogger();
 
-// Get the project root directory
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const projectRoot = path.resolve(__dirname, "..");
+// Get the project root directory without relying on import.meta.url so the
+// bundled CJS build works in production.
+const projectRoot = process.cwd();
 const clientRoot = path.resolve(projectRoot, "client");
 
 export async function setupVite(server: Server, app: Express) {
@@ -61,12 +58,7 @@ export async function setupVite(server: Server, app: Express) {
     const url = req.originalUrl;
 
     try {
-      const clientTemplate = path.resolve(
-        import.meta.dirname,
-        "..",
-        "client",
-        "index.html",
-      );
+      const clientTemplate = path.resolve(clientRoot, "index.html");
 
       // Cache template for better performance
       const now = Date.now();

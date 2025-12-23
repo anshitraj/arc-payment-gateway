@@ -1,13 +1,11 @@
 // Load environment variables if not already loaded
 import { config } from "dotenv";
 import { resolve } from "path";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
 
-// Get the project root directory (two levels up from this file: server/db.ts -> server -> root)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const projectRoot = resolve(__dirname, "..");
+// Use the working directory as the project root so the path resolution
+// works in both dev (ESM) and the bundled production build (CJS) where
+// import.meta.url is unavailable.
+const projectRoot = process.cwd();
 
 // Load .env from project root
 config({ path: resolve(projectRoot, ".env") });

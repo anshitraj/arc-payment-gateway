@@ -1,13 +1,12 @@
 // Load environment variables first, before any other imports
 import { config } from "dotenv";
 import { resolve } from "path";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
 
-// Get the project root directory (one level up from this file: server/index.ts -> root)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const projectRoot = resolve(__dirname, "..");
+// Determine the project root using the working directory so the build
+// works in both ESM and the bundled CJS output produced for production.
+// Relying on import.meta.url breaks once esbuild converts modules to CJS
+// (import.meta becomes undefined after bundling).
+const projectRoot = process.cwd();
 
 // Load .env from project root
 config({ path: resolve(projectRoot, ".env") });

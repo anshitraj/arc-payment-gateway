@@ -4,12 +4,11 @@
 
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
 
-// Get __dirname equivalent for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// Derive paths from the working directory so the bundled CJS build does not
+// rely on import.meta.url (which becomes undefined after esbuild converts
+// modules to CommonJS).
+const projectRoot = process.cwd();
 
 // Production mode - set DEMO_MODE=false in .env for production
 export const DEMO_MODE = process.env.DEMO_MODE === "true";
@@ -51,8 +50,7 @@ if (process.env.MERCHANT_BADGE_ABI) {
   try {
     // Try multiple possible paths
     const possiblePaths = [
-      path.join(process.cwd(), "contracts", "MerchantBadge.abi.json"),
-      path.join(__dirname, "..", "contracts", "MerchantBadge.abi.json"),
+      path.join(projectRoot, "contracts", "MerchantBadge.abi.json"),
       path.resolve("contracts", "MerchantBadge.abi.json"),
     ];
     
@@ -88,8 +86,7 @@ if (process.env.INVOICE_PAYMENT_PROOF_ABI) {
   try {
     // Try multiple possible paths
     const possiblePaths = [
-      path.join(process.cwd(), "contracts", "InvoicePaymentProof.abi.json"),
-      path.join(__dirname, "..", "contracts", "InvoicePaymentProof.abi.json"),
+      path.join(projectRoot, "contracts", "InvoicePaymentProof.abi.json"),
       path.resolve("contracts", "InvoicePaymentProof.abi.json"),
     ];
     
