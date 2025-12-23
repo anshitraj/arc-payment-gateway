@@ -42,11 +42,12 @@ export default defineConfig(async () => {
         manualChunks: (id) => {
           // Split node_modules into vendor chunks
           if (id.includes('node_modules')) {
-            // React must be in its own chunk and loaded first
+            // CRITICAL: Don't split React - keep it in main bundle
+            // This ensures React.createContext is available when wallet-vendor loads
             if (id.includes('react') || id.includes('react-dom')) {
-              return 'react-vendor';
+              return undefined; // Keep React in main bundle
             }
-            // Wallet libraries - keep separate but ensure React dependency
+            // Wallet libraries
             if (id.includes('wagmi') || id.includes('@rainbow-me') || id.includes('viem')) {
               return 'wallet-vendor';
             }
@@ -71,6 +72,7 @@ export default defineConfig(async () => {
         entryFileNames: 'assets/js/[name]-[hash].js',
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
       },
+      external: [], // Don't externalize anything - bundle everything
     },
     chunkSizeWarningLimit: 1000,
     cssCodeSplit: true,
