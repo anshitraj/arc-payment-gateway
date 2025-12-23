@@ -42,17 +42,19 @@ export default defineConfig(async () => {
         manualChunks: (id) => {
           // Split node_modules into vendor chunks
           if (id.includes('node_modules')) {
+            // React must be in its own chunk and loaded first
             if (id.includes('react') || id.includes('react-dom')) {
               return 'react-vendor';
             }
+            // Wallet libraries - keep separate but ensure React dependency
             if (id.includes('wagmi') || id.includes('@rainbow-me') || id.includes('viem')) {
               return 'wallet-vendor';
             }
-            if (id.includes('@radix-ui')) {
-              return 'ui-vendor';
-            }
             if (id.includes('@tanstack/react-query')) {
               return 'query-vendor';
+            }
+            if (id.includes('@radix-ui')) {
+              return 'ui-vendor';
             }
             if (id.includes('framer-motion')) {
               return 'motion-vendor';
@@ -73,6 +75,10 @@ export default defineConfig(async () => {
     chunkSizeWarningLimit: 1000,
     cssCodeSplit: true,
     reportCompressedSize: false,
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true,
+    },
   },
   server: {
     fs: {
