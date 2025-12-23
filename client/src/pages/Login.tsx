@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,33 +6,19 @@ import { Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import LazyRainbowKit from "@/lib/LazyRainbowKit";
+import { DEMO_MODE } from "@/config/demo";
+import { useDemoAccount } from "@/hooks/useDemoWallet";
+import { ConnectWalletButtonCustom } from "@/components/ConnectWalletButton";
 
 /**
- * Login Content - Uses wallet hooks dynamically
- * CRITICAL: No static imports of wagmi/RainbowKit - they cause SES to execute early
+ * Login Content - Demo Mode Compatible
+ * DEMO MODE: Uses stub hooks that don't execute any wallet code
  */
 function LoginContent() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [wagmiHooks, setWagmiHooks] = useState<any>(null);
-  const [connectButton, setConnectButton] = useState<any>(null);
+  const { address, isConnected } = useDemoAccount();
   const hasRedirected = useRef(false);
-
-  // Dynamically load wagmi hooks and ConnectButton
-  useEffect(() => {
-    Promise.all([
-      import('wagmi'),
-      import('@rainbow-me/rainbowkit')
-    ]).then(([wagmi, rainbow]) => {
-      setWagmiHooks(wagmi);
-      setConnectButton(() => rainbow.ConnectButton);
-    });
-  }, []);
-
-  // Get account info using dynamic hook
-  const accountResult = wagmiHooks?.useAccount ? wagmiHooks.useAccount() : { address: undefined, isConnected: false };
-  const { address, isConnected } = accountResult;
 
   // Authenticate with wallet address when connected
   const walletAuthMutation = useMutation({
@@ -69,18 +55,6 @@ function LoginContent() {
     }
   }, [isConnected, address, walletAuthMutation]);
 
-  if (!connectButton) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="text-center">
-          <Wallet className="w-8 h-8 mx-auto mb-4 animate-pulse text-primary" />
-          <p className="text-muted-foreground">Loading wallet...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const ConnectButtonCustom = connectButton.Custom;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4" data-testid="page-login">
@@ -113,7 +87,7 @@ function LoginContent() {
               </div>
 
               <div className="flex justify-center">
-                <ConnectButtonCustom>
+                <ConnectWalletButtonCustom>
                   {({
                     account,
                     chain,
@@ -191,7 +165,7 @@ function LoginContent() {
                       </div>
                     );
                   }}
-                </ConnectButtonCustom>
+                </ConnectWalletButtonCustom>
               </div>
 
               {walletAuthMutation.isPending && (
@@ -208,13 +182,9 @@ function LoginContent() {
 }
 
 /**
- * Login Page - Wraps LoginContent with LazyRainbowKit
- * CRITICAL: This ensures wallet SDKs only load after window.onload
+ * Login Page - Demo Mode Compatible
+ * DEMO MODE: No wallet SDKs loaded, preventing SES issues
  */
 export default function Login() {
-  return (
-    <LazyRainbowKit>
-      <LoginContent />
-    </LazyRainbowKit>
-  );
+  return <LoginContent />;
 }

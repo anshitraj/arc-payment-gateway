@@ -12,7 +12,8 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, X, Zap, CreditCard, Shield, Code2, BookOpen, Webhook, BarChart3, Wallet, Droplet } from "lucide-react";
 import { NotificationDropdown } from "./NotificationDropdown";
-import { useState, useEffect } from "react";
+import { DEMO_MODE } from "@/config/demo";
+import { ConnectWalletButtonCustom } from "./ConnectWalletButton";
 
 const productItems = [
   { title: "Payments", description: "Accept stablecoin payments instantly", icon: CreditCard, href: "/dashboard" },
@@ -30,16 +31,6 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
-  const [ConnectButton, setConnectButton] = useState<any>(null);
-
-  // Dynamically load ConnectButton - only works inside LazyRainbowKit
-  useEffect(() => {
-    import('@rainbow-me/rainbowkit').then(rainbow => {
-      setConnectButton(() => rainbow.ConnectButton);
-    }).catch(() => {
-      // Not available - page doesn't have LazyRainbowKit
-    });
-  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -136,8 +127,8 @@ export function Navbar() {
 
           <div className="hidden lg:flex items-center gap-3 flex-shrink-0">
             {/* Only show Connect Wallet button on dashboard/app routes, not on homepage */}
-            {!isLanding && ConnectButton && (
-              <ConnectButton.Custom>
+            {!isLanding && (
+              <ConnectWalletButtonCustom>
                 {({
                   account,
                   chain,
@@ -210,10 +201,10 @@ export function Navbar() {
                         );
                       })()}
                     </div>
-                  );
-                }}
-              </ConnectButton.Custom>
-            )}
+                    );
+                  }}
+                </ConnectWalletButtonCustom>
+              )}
             {/* Only show notifications on dashboard/app routes, not on homepage */}
             {!isLanding && <NotificationDropdown />}
             <Button
@@ -298,8 +289,8 @@ export function Navbar() {
                 </nav>
                 <div className="p-6 border-t border-border space-y-3">
                   {/* Only show Connect Wallet button on dashboard/app routes, not on homepage */}
-                  {!isLanding && ConnectButton && (
-                    <ConnectButton.Custom>
+                  {!isLanding && (
+                    <ConnectWalletButtonCustom>
                       {({
                         account,
                         chain,
@@ -375,7 +366,7 @@ export function Navbar() {
                           </div>
                         );
                       }}
-                    </ConnectButton.Custom>
+                    </ConnectWalletButtonCustom>
                   )}
                   <Button
                     variant="ghost"
