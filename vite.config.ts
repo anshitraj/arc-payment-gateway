@@ -39,16 +39,24 @@ export default defineConfig(async () => {
     sourcemap: false,
     rollupOptions: {
       output: {
+        // CRITICAL FIX: Use a function that ensures React is available to all chunks
+        // The error occurs because vendor chunk can't access React from wallet-vendor
         manualChunks: (id) => {
           // Split node_modules into vendor chunks
           if (id.includes('node_modules')) {
-            // CRITICAL: Bundle React WITH wallet-vendor to ensure React.createContext is available
-            // This prevents "createContext is undefined" errors when wallet libraries load
-            if (id.includes('wagmi') || id.includes('@rainbow-me') || id.includes('viem') || id.includes('@walletconnect')) {
-              return 'wallet-vendor';
-            }
-            // Include React in wallet-vendor so it's always available
+            // CRITICAL: Don't manually chunk React - this causes the module resolution issue
+            // Instead, let Vite's default chunking handle React, which ensures proper dependencies
+            // React will be automatically included where it's imported
+            
+            // Skip React - Vite will handle it automatically with proper dependencies
             if (id.includes('react') || id.includes('react-dom')) {
+              // Return undefined to use Vite's default chunking for React
+              // This ensures React is bundled correctly with proper module resolution
+              return;
+            }
+            
+            // Wallet libraries
+            if (id.includes('wagmi') || id.includes('@rainbow-me') || id.includes('viem') || id.includes('@walletconnect')) {
               return 'wallet-vendor';
             }
             if (id.includes('@tanstack/react-query')) {
