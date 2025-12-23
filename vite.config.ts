@@ -42,13 +42,13 @@ export default defineConfig(async () => {
         manualChunks: (id) => {
           // Split node_modules into vendor chunks
           if (id.includes('node_modules')) {
-            // CRITICAL: Don't split React - keep it in main bundle
-            // This ensures React.createContext is available when wallet-vendor loads
-            if (id.includes('react') || id.includes('react-dom')) {
-              return undefined; // Keep React in main bundle
+            // CRITICAL: Bundle React WITH wallet-vendor to ensure React.createContext is available
+            // This prevents "createContext is undefined" errors when wallet libraries load
+            if (id.includes('wagmi') || id.includes('@rainbow-me') || id.includes('viem') || id.includes('@walletconnect')) {
+              return 'wallet-vendor';
             }
-            // Wallet libraries
-            if (id.includes('wagmi') || id.includes('@rainbow-me') || id.includes('viem')) {
+            // Include React in wallet-vendor so it's always available
+            if (id.includes('react') || id.includes('react-dom')) {
               return 'wallet-vendor';
             }
             if (id.includes('@tanstack/react-query')) {
