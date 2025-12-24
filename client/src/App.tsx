@@ -1,13 +1,12 @@
 import { lazy, Suspense } from "react";
 import { Switch, Route } from "wouter";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { WalletRoute } from "@/components/WalletRoute";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { TestModeProvider } from "@/hooks/useTestMode";
+import { LazyRainbowKitProvider } from "@/lib/LazyRainbowKitProvider";
 import { Loader2 } from "lucide-react";
-// CRITICAL: NO wagmi/RainbowKit imports here - they cause SES to execute early
 
 // Lazy load pages for code splitting and faster initial load
 const Landing = lazy(() => import("@/pages/Landing"));
@@ -56,9 +55,11 @@ function Router() {
           </Suspense>
         </Route>
         <Route path="/login">
-          <Suspense fallback={<PageLoader />}>
-            <Login />
-          </Suspense>
+          <WalletRoute>
+            <Suspense fallback={<PageLoader />}>
+              <Login />
+            </Suspense>
+          </WalletRoute>
         </Route>
         <Route path="/pricing">
           <Suspense fallback={<PageLoader />}>
@@ -71,137 +72,175 @@ function Router() {
           </Suspense>
         </Route>
         <Route path="/dashboard">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <Dashboard />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <Dashboard />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/payment-links">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardPaymentLinks />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardPaymentLinks />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/qr-codes">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardQRCodes />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardQRCodes />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/transactions">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardPayments />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardPayments />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/payments">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardPayments />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardPayments />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/payments/:id">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardPaymentDetails />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardPaymentDetails />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/invoices">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardInvoices />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardInvoices />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/subscriptions">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardSubscriptions />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardSubscriptions />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/payouts">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardPayouts />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardPayouts />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/fees">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardFees />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardFees />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/integrations">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardIntegrations />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardIntegrations />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/customers">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardCustomers />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardCustomers />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/treasury">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardTreasury />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardTreasury />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/bridge">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardBridge />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardBridge />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/reports">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardReports />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardReports />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/dashboard/settings">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardSettings />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardSettings />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/developers/api-keys">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DevelopersAPIKeys />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DevelopersAPIKeys />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/developers/webhooks">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardWebhooks />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardWebhooks />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/developers/api-logs">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <DashboardWebhooks />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <DashboardWebhooks />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route path="/pay/:id">
           <Suspense fallback={<PageLoader />}>
@@ -264,11 +303,13 @@ function Router() {
           </Suspense>
         </Route>
         <Route path="/activate">
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <ActivateBusiness />
-            </Suspense>
-          </ProtectedRoute>
+          <WalletRoute>
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <ActivateBusiness />
+              </Suspense>
+            </ProtectedRoute>
+          </WalletRoute>
         </Route>
         <Route>
           <Suspense fallback={<PageLoader />}>
@@ -287,14 +328,14 @@ function App() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <LazyRainbowKitProvider>
       <TestModeProvider>
         <TooltipProvider>
           <Toaster />
           <Router />
         </TooltipProvider>
       </TestModeProvider>
-    </QueryClientProvider>
+    </LazyRainbowKitProvider>
   );
 }
 

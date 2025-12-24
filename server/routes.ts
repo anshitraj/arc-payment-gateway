@@ -7,6 +7,7 @@ import { db, pool } from "./db.js";
 import { insertUserSchema, insertPaymentSchema, insertInvoiceSchema } from "../shared/schema.js";
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { z } from "zod";
+import { verifyMessage } from "viem";
 import { registerPaymentRoutes } from "./routes/payments.js";
 import { registerRefundRoutes } from "./routes/refunds.js";
 import { registerWebhookRoutes } from "./routes/webhooks.js";
@@ -130,6 +131,11 @@ export async function registerRoutes(
     pruneSessionInterval: false, // Disable automatic pruning in serverless
   });
 
+  // Determine if we should use secure cookies
+  // In preview mode (localhost), we're on HTTP, so secure cookies won't work
+  const isLocalhost = process.env.PORT === "4173" || process.env.NODE_ENV !== "production";
+  const useSecureCookies = process.env.NODE_ENV === "production" && !isLocalhost;
+
   app.use(
     session({
       store: sessionStore,
@@ -137,7 +143,7 @@ export async function registerRoutes(
       resave: false,
       saveUninitialized: false, // Only save sessions that are modified
       cookie: {
-        secure: process.env.NODE_ENV === "production",
+        secure: useSecureCookies, // Only secure on HTTPS (not localhost)
         httpOnly: true,
         sameSite: "lax", // Use "lax" for same-site requests (frontend and API on same domain)
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
@@ -231,10 +237,45 @@ export async function registerRoutes(
 
   app.post("/api/auth/wallet-login", async (req, res) => {
     try {
-      const { address } = req.body;
+      const { address, signature, message } = req.body;
+      
+      console.log("🔐 Wallet login request:", { 
+        address: address ? `${address.slice(0, 10)}...` : 'undefined',
+        hasSignature: !!signature,
+        hasMessage: !!message 
+      });
       
       if (!address || typeof address !== 'string' || !address.startsWith('0x')) {
+        console.error("❌ Invalid address:", address);
         return res.status(400).json({ error: "Invalid wallet address" });
+      }
+
+      // Verify signature if provided
+      if (signature && message) {
+        try {
+          console.log("🔍 Verifying signature for address:", address);
+          // verifyMessage verifies the signature matches the address
+          // It returns true if valid, throws if invalid
+          // Note: verifyMessage is synchronous in viem
+          const isValid = verifyMessage({
+            address: address as `0x${string}`,
+            message,
+            signature: signature as `0x${string}`,
+          });
+          
+          if (!isValid) {
+            console.error(`Signature verification returned false for address: ${address}`);
+            return res.status(401).json({ error: "Invalid signature" });
+          }
+          console.log(`✅ Signature verified for address: ${address}`);
+        } catch (error) {
+          console.error("Signature verification error:", error);
+          return res.status(401).json({ error: "Signature verification failed: " + (error instanceof Error ? error.message : String(error)) });
+        }
+      } else {
+        // For backward compatibility, allow login without signature
+        // But in production, you should require signatures
+        console.warn("Wallet login without signature - consider requiring signatures for security");
       }
 
       // Normalize wallet address (lowercase)
@@ -380,10 +421,23 @@ export async function registerRoutes(
         // Ensure session is saved before sending response (critical for serverless)
         await new Promise<void>((resolve, reject) => {
           req.session.save((err) => {
-            if (err) reject(err);
-            else resolve();
+            if (err) {
+              console.error("❌ Error saving session:", err);
+              reject(err);
+            } else {
+              console.log("✅ Session saved successfully:", {
+                userId: req.session.userId,
+                merchantId: req.session.merchantId,
+                sessionID: req.sessionID,
+              });
+              resolve();
+            }
           });
         });
+
+        // Log cookie headers to verify they're being set
+        const setCookieHeader = res.getHeader('Set-Cookie');
+        console.log("🍪 Set-Cookie header:", setCookieHeader ? "Present" : "Missing");
 
         res.json({
           user: { id: user.id, email: user.email, name: user.name },
@@ -985,6 +1039,86 @@ export async function registerRoutes(
     }
   });
 
+  // IMPORTANT: These specific routes must come BEFORE the /:id route
+  // to prevent Express from matching them as dynamic :id parameters
+  
+  // Get supported payment assets
+  app.get("/api/payments/supported-assets", rateLimit, async (req, res) => {
+    try {
+      const { settlementCurrency, isTestnet } = req.query;
+
+      if (!settlementCurrency) {
+        return res.status(400).json({ error: "settlementCurrency is required" });
+      }
+
+      if (settlementCurrency !== "USDC" && settlementCurrency !== "EURC") {
+        return res.status(400).json({ error: "Settlement currency must be USDC or EURC" });
+      }
+
+      const { getSupportedPaymentAssets } = await import("./services/bridgeService.js");
+      const isTest = isTestnet === "true" || isTestnet === true;
+
+      const supportedAssets = getSupportedPaymentAssets(
+        settlementCurrency as "USDC" | "EURC",
+        isTest
+      );
+
+      res.json(supportedAssets);
+    } catch (error) {
+      console.error("Get supported assets error:", error);
+      res.status(500).json({ error: "Failed to get supported assets" });
+    }
+  });
+
+  // Get conversion estimate
+  app.get("/api/payments/conversion-estimate", rateLimit, async (req, res) => {
+    try {
+      const { paymentAsset, settlementCurrency, amount, isTestnet } = req.query;
+
+      if (!paymentAsset || !settlementCurrency || !amount) {
+        return res.status(400).json({ error: "Missing required parameters" });
+      }
+
+      if (settlementCurrency !== "USDC" && settlementCurrency !== "EURC") {
+        return res.status(400).json({ error: "Settlement currency must be USDC or EURC" });
+      }
+
+      const { estimateConversion, getSupportedPaymentAssets } = await import("./services/bridgeService.js");
+      const isTest = isTestnet === "true" || isTestnet === true;
+
+      const estimate = estimateConversion(
+        paymentAsset as string,
+        settlementCurrency as "USDC" | "EURC",
+        amount as string,
+        isTest
+      );
+
+      // Get supported assets to determine steps
+      const supportedAssets = getSupportedPaymentAssets(
+        settlementCurrency as "USDC" | "EURC",
+        isTest
+      );
+      const selectedAsset = supportedAssets.find(a => a.asset === paymentAsset);
+
+      const steps: string[] = [];
+      if (selectedAsset?.requiresSwap) {
+        steps.push(`Swap to ${settlementCurrency} on source chain`);
+      }
+      if (selectedAsset?.requiresBridge) {
+        steps.push("Bridge via Circle CCTP");
+      }
+      steps.push(`Settle ${settlementCurrency} on Arc Network`);
+
+      res.json({
+        ...estimate,
+        steps,
+      });
+    } catch (error) {
+      console.error("Conversion estimate error:", error);
+      res.status(500).json({ error: "Failed to estimate conversion" });
+    }
+  });
+
   // Legacy endpoint for session-based auth (dashboard)
   // Public access allowed for checkout pages
   app.get("/api/payments/:id", async (req, res) => {
@@ -1132,83 +1266,6 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Generate QR code error:", error);
       res.status(500).json({ error: "Failed to generate QR code" });
-    }
-  });
-
-  // Get supported payment assets
-  app.get("/api/payments/supported-assets", rateLimit, async (req, res) => {
-    try {
-      const { settlementCurrency, isTestnet } = req.query;
-
-      if (!settlementCurrency) {
-        return res.status(400).json({ error: "settlementCurrency is required" });
-      }
-
-      if (settlementCurrency !== "USDC" && settlementCurrency !== "EURC") {
-        return res.status(400).json({ error: "Settlement currency must be USDC or EURC" });
-      }
-
-      const { getSupportedPaymentAssets } = await import("./services/bridgeService.js");
-      const isTest = isTestnet === "true" || isTestnet === true;
-
-      const supportedAssets = getSupportedPaymentAssets(
-        settlementCurrency as "USDC" | "EURC",
-        isTest
-      );
-
-      res.json(supportedAssets);
-    } catch (error) {
-      console.error("Get supported assets error:", error);
-      res.status(500).json({ error: "Failed to get supported assets" });
-    }
-  });
-
-  // Get conversion estimate
-  app.get("/api/payments/conversion-estimate", rateLimit, async (req, res) => {
-    try {
-      const { paymentAsset, settlementCurrency, amount, isTestnet } = req.query;
-
-      if (!paymentAsset || !settlementCurrency || !amount) {
-        return res.status(400).json({ error: "Missing required parameters" });
-      }
-
-      if (settlementCurrency !== "USDC" && settlementCurrency !== "EURC") {
-        return res.status(400).json({ error: "Settlement currency must be USDC or EURC" });
-      }
-
-      const { estimateConversion, getSupportedPaymentAssets } = await import("./services/bridgeService.js");
-      const isTest = isTestnet === "true" || isTestnet === true;
-
-      const estimate = estimateConversion(
-        paymentAsset as string,
-        settlementCurrency as "USDC" | "EURC",
-        amount as string,
-        isTest
-      );
-
-      // Get supported assets to determine steps
-      const supportedAssets = getSupportedPaymentAssets(
-        settlementCurrency as "USDC" | "EURC",
-        isTest
-      );
-      const selectedAsset = supportedAssets.find(a => a.asset === paymentAsset);
-
-      const steps: string[] = [];
-      if (selectedAsset?.requiresSwap) {
-        steps.push(`Swap to ${settlementCurrency} on source chain`);
-      }
-      if (selectedAsset?.requiresBridge) {
-        steps.push("Bridge via Circle CCTP");
-      }
-      steps.push(`Settle ${settlementCurrency} on Arc Network`);
-
-      res.json({
-        ...estimate,
-        steps,
-      });
-    } catch (error) {
-      console.error("Conversion estimate error:", error);
-      res.status(500).json({ error: "Failed to estimate conversion" });
     }
   });
 

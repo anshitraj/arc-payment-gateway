@@ -1,36 +1,104 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
-import { Wallet } from "lucide-react";
+import { Wallet, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { DEMO_MODE } from "@/config/demo";
-import { useDemoAccount } from "@/hooks/useDemoWallet";
+import { useAccount, useSignMessage } from "wagmi";
 import { ConnectWalletButtonCustom } from "@/components/ConnectWalletButton";
+import { useWalletProviderReady } from "@/lib/WalletProviderContext";
+import { Button } from "@/components/ui/button";
+import { useTestMode } from "@/hooks/useTestMode";
 
 /**
- * Login Content - Demo Mode Compatible
- * DEMO MODE: Uses stub hooks that don't execute any wallet code
+ * Login Content
  */
 function LoginContent() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { address, isConnected } = useDemoAccount();
-  const hasRedirected = useRef(false);
+  const queryClient = useQueryClient();
+  const { setTestMode } = useTestMode();
+  
+  // Clear logout flag if present
+  useEffect(() => {
+    const justLoggedOut = sessionStorage.getItem("logout");
+    if (justLoggedOut) {
+      sessionStorage.removeItem("logout");
+    }
+  }, []);
+  
+  // useAccount hook - will only work when WagmiProvider is ready
+  const { address, isConnected } = useAccount();
+  
+  // Generate a unique message for signing (regenerate when address changes)
+  const loginMessage = useMemo(() => {
+    if (!address) return "";
+    return `Sign this message to authenticate with ArcPayKit.\n\nWallet: ${address}\nTimestamp: ${Date.now()}`;
+  }, [address]);
 
-  // Authenticate with wallet address when connected
+  // Authenticate with wallet address and signature
   const walletAuthMutation = useMutation({
-    mutationFn: async (walletAddress: string) => {
-      return await apiRequest("POST", "/api/auth/wallet-login", { address: walletAddress });
+    mutationFn: async ({ address, signature, message }: { address: string; signature: string; message: string }) => {
+      return await apiRequest("POST", "/api/auth/wallet-login", { 
+        address,
+        signature,
+        message,
+      });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      console.log("✅ Login mutation successful, setting up session...");
+      
       toast({ 
         title: "Wallet connected!", 
         description: "You've been signed in successfully." 
       });
-      setLocation("/dashboard");
+      
+      // Invalidate and clear any cached auth data
+      queryClient.removeQueries({ queryKey: ["/api/auth/me"] });
+      
+      // Wait for session cookie to be set by browser
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Verify session by fetching auth data
+      try {
+        console.log("🔄 Verifying session...");
+        const response = await fetch("/api/auth/me", {
+          credentials: "include",
+        });
+        
+        if (response.ok) {
+          const authData = await response.json();
+          console.log("✅ Session verified:", authData);
+          
+          // Set the auth data in query cache
+          queryClient.setQueryData(["/api/auth/me"], authData);
+          
+          // Ensure new users default to demo mode (test mode = true)
+          // Check if test mode is not set or is false, and set it to true
+          const currentTestMode = localStorage.getItem("arcpaykit_test_mode");
+          if (currentTestMode === null || currentTestMode === "false") {
+            setTestMode(true);
+            localStorage.setItem("arcpaykit_test_mode", "true");
+            console.log("✅ Set test mode to demo (true) for new user");
+          }
+          
+          // Redirect to dashboard
+          setLocation("/dashboard");
+        } else {
+          console.error("❌ Session verification failed:", response.status);
+          toast({
+            title: "Session error",
+            description: "Please try signing in again",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error("❌ Error verifying session:", error);
+        // Still redirect - the session might work
+        setLocation("/dashboard");
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -40,20 +108,118 @@ function LoginContent() {
       });
     },
   });
-
-  // Auto-authenticate when wallet connects
+  
+  // Sign message hook - wagmi v2 mutation
+  const { 
+    signMessageAsync, 
+    isPending: isSigning, 
+    error: signError 
+  } = useSignMessage();
+  
+  // Log signError if it exists
   useEffect(() => {
-    const justLoggedOut = sessionStorage.getItem("logout");
-    if (justLoggedOut) {
-      sessionStorage.removeItem("logout");
+    if (signError) {
+      console.error("❌ Sign error detected:", signError);
+      toast({
+        title: "Signing failed",
+        description: signError.message || "Could not sign message. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [signError, toast]);
+
+  // Handle sign in button click
+  const handleSignIn = async () => {
+    console.log("Sign in button clicked");
+    
+    if (!address) {
+      console.error("No address found");
+      toast({
+        title: "No wallet connected",
+        description: "Please connect your wallet first",
+        variant: "destructive",
+      });
       return;
     }
     
-    if (isConnected && address && !hasRedirected.current) {
-      hasRedirected.current = true;
-      walletAuthMutation.mutate(address);
+    if (!loginMessage) {
+      console.error("No login message generated");
+      toast({
+        title: "Error",
+        description: "Unable to generate login message",
+        variant: "destructive",
+      });
+      return;
     }
-  }, [isConnected, address, walletAuthMutation]);
+    
+    if (!signMessageAsync) {
+      console.error("signMessageAsync function not available");
+      toast({
+        title: "Error",
+        description: "Signing function not available. Please refresh the page.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    console.log("Sign in clicked, message:", loginMessage);
+    console.log("Address:", address);
+    console.log("🔄 Calling signMessageAsync...");
+    
+    try {
+      // Use signMessageAsync which returns a promise
+      const signature = await signMessageAsync({ message: loginMessage });
+      console.log("✅ Signature received:", signature);
+      console.log("🔄 Starting authentication with backend...");
+      
+      // After successful signature, authenticate with backend
+      if (!address || !loginMessage) {
+        console.error("❌ Missing address or loginMessage after signing");
+        toast({
+          title: "Error",
+          description: "Missing wallet information. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Double-check address is available
+      if (!address) {
+        console.error("❌ Address is undefined when trying to authenticate");
+        toast({
+          title: "Error",
+          description: "Wallet address not available. Please reconnect your wallet.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      console.log("📤 Sending authentication request:", {
+        address,
+        hasSignature: !!signature,
+        hasMessage: !!loginMessage,
+      });
+      
+      try {
+        const result = await walletAuthMutation.mutateAsync({
+          address,
+          signature,
+          message: loginMessage,
+        });
+        console.log("✅ Authentication successful:", result);
+      } catch (error) {
+        console.error("❌ Authentication error after signing:", error);
+        // Error handling is done in mutation
+      }
+    } catch (error) {
+      console.error("❌ Error signing message:", error);
+      toast({
+        title: "Signing failed",
+        description: error instanceof Error ? error.message : "Failed to sign message",
+        variant: "destructive",
+      });
+    }
+  };
 
 
   return (
@@ -152,12 +318,27 @@ function LoginContent() {
                                   {account.displayName || `${account.address.slice(0, 6)}...${account.address.slice(-4)}`}
                                 </div>
                               </div>
+                              <Button
+                                onClick={handleSignIn}
+                                disabled={isSigning || walletAuthMutation.isPending}
+                                type="button"
+                                className="w-full h-12 px-6 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
+                              >
+                                {isSigning || walletAuthMutation.isPending ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    {isSigning ? "Signing..." : "Verifying..."}
+                                  </>
+                                ) : (
+                                  "Verify your wallet"
+                                )}
+                              </Button>
                               <button
                                 onClick={openAccountModal}
                                 type="button"
-                                className="w-full h-12 px-6 rounded-lg border border-border bg-background hover:bg-accent transition-colors text-sm"
+                                className="w-full h-10 px-6 rounded-lg border border-border bg-background hover:bg-accent transition-colors text-sm"
                               >
-                                Manage Wallet
+                                Change Wallet
                               </button>
                             </div>
                           );
@@ -167,12 +348,6 @@ function LoginContent() {
                   }}
                 </ConnectWalletButtonCustom>
               </div>
-
-              {walletAuthMutation.isPending && (
-                <div className="text-center text-sm text-muted-foreground">
-                  Authenticating...
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -182,9 +357,19 @@ function LoginContent() {
 }
 
 /**
- * Login Page - Demo Mode Compatible
- * DEMO MODE: No wallet SDKs loaded, preventing SES issues
+ * Login Page
  */
 export default function Login() {
+  const { isReady: walletReady } = useWalletProviderReady();
+  
+  // Show loading spinner while wallet providers are loading
+  if (!walletReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
   return <LoginContent />;
 }

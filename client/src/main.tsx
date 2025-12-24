@@ -1,35 +1,23 @@
-// CRITICAL: Import React FIRST and make it available globally IMMEDIATELY
-// This must happen synchronously before any async vendor chunks load
-import * as React from "react";
+// CRITICAL: Import SES/lockdown shim FIRST before any other code
+// This prevents SES from executing and breaking React.createContext
+import "./shims/endo-lockdown";
+
+import React from "react";
 import { createRoot } from "react-dom/client";
+import App from "./App";
 import "./index.css";
 
-// Make React available globally BEFORE any other imports
-// This ensures wallet-vendor chunk can access React.createContext
-if (typeof window !== "undefined") {
-  // Set React globally IMMEDIATELY - this must happen before App.tsx imports
-  (window as any).React = React;
-  (window as any).ReactDOM = { createRoot };
-  // Expose all React hooks and APIs that vendor chunks might need
-  (window as any).ReactCreateContext = React.createContext;
-  (window as any).ReactUseState = React.useState;
-  (window as any).ReactUseEffect = React.useEffect;
-  (window as any).ReactUseMemo = React.useMemo;
-  (window as any).ReactUseCallback = React.useCallback;
-  (window as any).ReactUseRef = React.useRef;
-  (window as any).ReactUseContext = React.useContext;
+// Fail-safe: Check if SES/lockdown is present before React mounts
+// This prevents the "can't access property 'createContext' of undefined" error
+if (typeof window !== "undefined" && (window as any).lockdown) {
+  console.warn(
+    "[SES Guard] SES/lockdown detected before React mount. " +
+    "Wallet providers will be lazy-loaded after React initialization to prevent conflicts."
+  );
 }
 
-// CRITICAL: Use dynamic import for App.tsx so it loads AFTER React is set up
-// This prevents App.tsx from being evaluated before React is available globally
 const rootElement = document.getElementById("root");
 if (rootElement) {
   const root = createRoot(rootElement);
-  
-  // Dynamic import ensures App.tsx and its dependencies load AFTER React is set up
-  import("./App").then(({ default: App }) => {
-    root.render(React.createElement(App));
-  }).catch((error) => {
-    console.error("Failed to load App:", error);
-  });
+  root.render(React.createElement(App));
 }

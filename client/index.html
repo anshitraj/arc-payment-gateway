@@ -11,6 +11,47 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Hard-disable SES/Endo lockdown before any code executes -->
+    <script>
+      (function() {
+        var g = globalThis || window;
+        
+        // CRITICAL: Pre-define SES functions as no-ops BEFORE any script runs
+        // These must be simple and not rely on any complex logic
+        g.lockdown = function() {};
+        g.harden = function(x) { return x; };
+        g.repairIntrinsics = function() {};
+        g.Compartment = function() { this.globalThis = g; };
+        g.assert = function(c,m) { if(!c) throw new Error(m); };
+        g.assert.typeof = function(){};
+        g.assert.error = function(m){ return new Error(m); };
+        g.assert.fail = function(m){ throw new Error(m); };
+        g.assert.equal = function(){};
+        g.assert.string = function(){};
+        g.assert.note = function(){};
+        g.assert.details = function(){};
+        g.assert.Fail = function(){};
+        g.assert.quote = function(v){ return String(v); };
+        
+        // Mark that SES has been pre-blocked
+        g.__SES_BLOCKED__ = true;
+        g.__SES_LOCKDOWN_DONE__ = true;
+        
+        // Suppress SES console messages
+        var origWarn = console.warn;
+        var origLog = console.log;
+        console.warn = function() {
+          var msg = arguments[0];
+          if (typeof msg === 'string' && (msg.includes('SES') || msg.includes('Removing') || msg.includes('intrinsics'))) return;
+          return origWarn.apply(console, arguments);
+        };
+        console.log = function() {
+          var msg = arguments[0];
+          if (typeof msg === 'string' && (msg.includes('SES') || msg.includes('lockdown'))) return;
+          return origLog.apply(console, arguments);
+        };
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

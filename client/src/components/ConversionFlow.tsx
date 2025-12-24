@@ -33,15 +33,20 @@ export function ConversionFlow({
   const { data: estimate, isLoading } = useQuery<ConversionEstimate>({
     queryKey: ["/api/payments/conversion-estimate", paymentAsset, settlementCurrency, amount, isTestnet],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/payments/conversion-estimate", {
+      const params = new URLSearchParams({
         paymentAsset,
         settlementCurrency,
         amount,
-        isTestnet,
+        isTestnet: String(isTestnet),
       });
+      const response = await fetch(`/api/payments/conversion-estimate?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch conversion estimate: ${response.statusText}`);
+      }
       return await response.json();
     },
-    enabled: !!paymentAsset && !!settlementCurrency && !!amount,
+    enabled: !!paymentAsset && !!settlementCurrency && !!amount && parseFloat(amount) > 0,
+    retry: 1,
   });
 
   if (isLoading) {

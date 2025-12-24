@@ -45,6 +45,8 @@ import { apiRequest } from "@/lib/queryClient";
 import { useDisconnect } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMerchantProfile } from "@/hooks/useMerchantProfile";
+import { useWalletProviderReady } from "@/lib/WalletProviderContext";
+import { ConnectWalletButtonCustom } from "@/components/ConnectWalletButton";
 import { cn } from "@/lib/utils";
 
 const mainNavItems = [
@@ -79,6 +81,10 @@ function UserProfile() {
   const { user, merchant } = useAuth();
   const { displayName, walletAddress, logoUrl } = useMerchantProfile();
   const [, setLocation] = useLocation();
+  const { isReady: walletReady } = useWalletProviderReady();
+  
+  // Always call hooks unconditionally - they'll be safe once providers are ready
+  // The WalletProviderContext ensures components only render when ready
   const { disconnect } = useDisconnect();
   const queryClient = useQueryClient();
 
@@ -106,15 +112,15 @@ function UserProfile() {
       // Set a flag in sessionStorage to prevent auto-login
       sessionStorage.setItem("logout", "true");
       
-      // Redirect to homepage
-      setLocation("/");
+      // Redirect to login page
+      setLocation("/login");
     } catch (error) {
       console.error("Logout error:", error);
       // Even on error, disconnect wallet and redirect
       disconnect();
       queryClient.clear();
       sessionStorage.setItem("logout", "true");
-      setLocation("/");
+      setLocation("/login");
     }
   };
 
@@ -155,6 +161,56 @@ function UserProfile() {
           )}
         </div>
       </div>
+      {/* Change Wallet Button */}
+      <ConnectWalletButtonCustom>
+        {({
+          account,
+          openConnectModal,
+          mounted,
+        }) => {
+          if (!mounted) return null;
+          
+          const handleChangeWallet = async () => {
+            try {
+              // Disconnect current wallet first
+              if (account) {
+                disconnect();
+              }
+              
+              // Clear session and query cache
+              queryClient.clear();
+              await apiRequest("POST", "/api/auth/logout", {});
+              sessionStorage.setItem("logout", "true");
+              
+              // Small delay to ensure disconnect completes
+              setTimeout(() => {
+                // Redirect to login page where user can connect new wallet and sign in
+                setLocation("/login");
+              }, 200);
+            } catch (error) {
+              console.error("Change wallet error:", error);
+              // Even on error, disconnect and redirect
+              disconnect();
+              queryClient.clear();
+              sessionStorage.setItem("logout", "true");
+              setLocation("/login");
+            }
+          };
+          
+          return (
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-2.5 h-9 px-3 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/20 transition-all duration-200"
+              onClick={handleChangeWallet}
+              data-testid="button-change-wallet"
+            >
+              <Wallet className="w-4 h-4" />
+              <span className="font-medium">Change Wallet</span>
+            </Button>
+          );
+        }}
+      </ConnectWalletButtonCustom>
+
       <Button
         variant="ghost"
         className="w-full justify-start gap-2.5 h-9 px-3 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/20 transition-all duration-200"

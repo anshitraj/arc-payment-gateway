@@ -18,7 +18,9 @@ import type { Payment } from "@shared/schema";
 import type { MerchantProfile } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useWallet } from "@/lib/wallet-rainbowkit";
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useWalletProviderReady } from "@/lib/WalletProviderContext";
+
+import { ConnectWalletButtonCustom } from "@/components/ConnectWalletButton";
 import { getExplorerLink, getArcNetworkName } from "@/lib/arc";
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits } from 'viem';
@@ -46,7 +48,7 @@ const USDC_ABI = [
 const USDC_ADDRESS = (import.meta.env.VITE_USDC_TOKEN_ADDRESS || "0x3600000000000000000000000000000000000000") as `0x${string}`;
 const USDC_DECIMALS = 6; // USDC uses 6 decimals
 
-export default function Checkout() {
+function CheckoutContent() {
   const { id } = useParams<{ id: string }>();
   const [paymentAsset, setPaymentAsset] = useState<string>("USDC_ARC"); // Default to USDC on Arc
   const [paymentState, setPaymentState] = useState<"idle" | "processing" | "pending" | "success" | "error">("idle");
@@ -122,25 +124,40 @@ export default function Checkout() {
   const { data: supportedAssets } = useQuery<Array<{ asset: string; chainId: number; chainName: string; requiresBridge: boolean; requiresSwap: boolean }>>({
     queryKey: ["/api/payments/supported-assets", settlementCurrency, isTestnet],
     queryFn: async () => {
-      const response = await fetch(`/api/payments/supported-assets?settlementCurrency=${settlementCurrency}&isTestnet=${isTestnet}`);
-      if (!response.ok) return [];
+      const response = await fetch(`/api/payments/supported-assets?settlementCurrency=${settlementCurrency}&isTestnet=${String(isTestnet)}`);
+      if (!response.ok) {
+        console.error("Failed to fetch supported assets:", response.status, response.statusText);
+        return [];
+      }
       return await response.json();
     },
     enabled: !!settlementCurrency,
+    retry: 1,
   });
 
-  // Get conversion estimate
+  // Get conversion estimate (only if payment asset requires conversion)
+  const selectedAsset = supportedAssets?.find(a => a.asset === paymentAsset);
+  const requiresConversion = selectedAsset?.requiresBridge || selectedAsset?.requiresSwap;
+  
   const { data: conversionEstimate } = useQuery<{ estimatedTime: number; estimatedFees: string; conversionPath: string; steps: string[] }>({
     queryKey: ["/api/payments/conversion-estimate", paymentAsset, settlementCurrency, payment?.amount, isTestnet],
     queryFn: async () => {
       if (!payment?.amount) return null;
-      const response = await fetch(
-        `/api/payments/conversion-estimate?paymentAsset=${paymentAsset}&settlementCurrency=${settlementCurrency}&amount=${payment.amount}&isTestnet=${isTestnet}`
-      );
-      if (!response.ok) return null;
+      const params = new URLSearchParams({
+        paymentAsset,
+        settlementCurrency,
+        amount: String(payment.amount),
+        isTestnet: String(isTestnet),
+      });
+      const response = await fetch(`/api/payments/conversion-estimate?${params.toString()}`);
+      if (!response.ok) {
+        console.error("Failed to fetch conversion estimate:", response.status, response.statusText);
+        return null;
+      }
       return await response.json();
     },
-    enabled: !!paymentAsset && !!settlementCurrency && !!payment?.amount,
+    enabled: !!paymentAsset && !!settlementCurrency && !!payment?.amount && requiresConversion,
+    retry: 1,
   });
 
   // Calculate final amount with fees
@@ -353,7 +370,7 @@ export default function Checkout() {
               <img src="/arcpay.webp" alt="ArcPayKit" className="h-8" />
             </div>
             <div className="flex items-center">
-              <ConnectButton.Custom>
+              <ConnectWalletButtonCustom>
                 {({
                   account,
                   chain,
@@ -414,7 +431,7 @@ export default function Checkout() {
                     </Button>
                   );
                 }}
-              </ConnectButton.Custom>
+              </ConnectWalletButtonCustom>
             </div>
           </div>
         </div>
@@ -861,4 +878,19 @@ export default function Checkout() {
       </div>
     </div>
   );
+}
+
+export default function Checkout() {
+  const { isReady: walletReady } = useWalletProviderReady();
+
+  // Show loading spinner while wallet providers are loading
+  if (!walletReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return <CheckoutContent />;
 }

@@ -9,7 +9,8 @@ import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, XCircle, Shield, AlertCircle } from "lucide-react";
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useWalletProviderReady } from "@/lib/WalletProviderContext";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { getExplorerLink } from "@/lib/arc";
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits } from 'viem';
@@ -36,7 +37,7 @@ const USDC_ABI = [
 const USDC_ADDRESS = (import.meta.env.VITE_USDC_TOKEN_ADDRESS || "0x3600000000000000000000000000000000000000") as `0x${string}`;
 const USDC_DECIMALS = 6;
 
-export default function QRPayment() {
+function QRPaymentContent() {
   const { merchantId } = useParams<{ merchantId: string }>();
   const [, setLocation] = useWouterLocation();
   
@@ -447,7 +448,7 @@ export default function QRPayment() {
                       Connect your wallet to pay
                     </AlertDescription>
                   </Alert>
-                  <ConnectButton />
+                  <ConnectWalletButton />
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -505,5 +506,20 @@ export default function QRPayment() {
       </div>
     </div>
   );
+}
+
+export default function QRPayment() {
+  const { isReady: walletReady } = useWalletProviderReady();
+
+  // Show loading spinner while wallet providers are loading
+  if (!walletReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return <QRPaymentContent />;
 }
 

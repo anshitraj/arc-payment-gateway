@@ -19,7 +19,12 @@ import {
 import { Loader2, Shield, Wallet } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { lazy, Suspense } from "react";
+
+const ConnectButton = lazy(async () => {
+  const mod = await import("@rainbow-me/rainbowkit");
+  return { default: mod.ConnectButton };
+});
 import { useAccount } from "wagmi";
 
 const loginSchema = z.object({
@@ -132,7 +137,9 @@ export default function AdminLogin() {
                   <p className="text-sm text-muted-foreground mb-4">
                     Connect your admin wallet to sign in
                   </p>
-                  <ConnectButton />
+                  <Suspense fallback={<div className="h-10 w-32 bg-muted animate-pulse rounded" />}>
+                    <ConnectButton />
+                  </Suspense>
                 </div>
                 {isConnected && address && (
                   <div className="mt-4">

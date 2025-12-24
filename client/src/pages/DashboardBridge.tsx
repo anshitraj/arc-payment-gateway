@@ -38,7 +38,12 @@ import { getExplorerLink } from "@/lib/arc";
 import { useWallet } from "@/lib/wallet-rainbowkit";
 import { useBalance, useReadContract, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from "wagmi";
 import { formatUnits, parseUnits, pad, Address, Hash } from "viem";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { lazy, Suspense } from "react";
+
+const ConnectButton = lazy(async () => {
+  const mod = await import("@rainbow-me/rainbowkit");
+  return { default: mod.ConnectButton };
+});
 
 interface BridgeEstimate {
   estimatedTime: number;
@@ -893,7 +898,8 @@ export default function DashboardBridge() {
                         Connect your wallet to bridge tokens
                       </div>
                       <div className="flex justify-center">
-                        <ConnectButton.Custom>
+                        <Suspense fallback={<div className="h-10 w-full bg-muted animate-pulse rounded" />}>
+                          <ConnectButton.Custom>
                           {({ account, chain, openConnectModal, mounted }) => {
                             const ready = mounted;
                             const connected = ready && account && chain;
@@ -909,6 +915,7 @@ export default function DashboardBridge() {
                             );
                           }}
                         </ConnectButton.Custom>
+                        </Suspense>
                       </div>
                     </div>
                   )}

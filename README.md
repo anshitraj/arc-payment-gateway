@@ -81,6 +81,24 @@ A production-grade payment gateway platform similar to Stripe or Circle Payments
    ```bash
    npm install
    ```
+   
+   **⚠️ Important:** If you encounter SES-related errors or wallet connection issues after updating dependencies, perform a clean install:
+   
+   **Windows (PowerShell):**
+   ```powershell
+   Remove-Item -Recurse -Force node_modules, package-lock.json -ErrorAction SilentlyContinue
+   npm install
+   npm run build
+   ```
+   
+   **macOS/Linux:**
+   ```bash
+   rm -rf node_modules package-lock.json
+   npm install
+   npm run build
+   ```
+   
+   The dependency overrides in `package.json` ensure compatible wallet SDK versions that don't inject SES.
 
 3. **Set up environment variables**
 
